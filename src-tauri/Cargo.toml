@@ -1,0 +1,47 @@
+[package]
+name = "md-reader"
+version = "1.0.0"
+description = "A cross-platform markdown reader"
+edition = "2021"
+rust-version = "1.90"
+license = "MIT"
+
+[lib]
+name = "md_reader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The accessibility warnings are a Linux matter: the libraries that announce
+# themselves on the accessibility bus are GTK ones, and GTK is only on Linux.
+[target.'cfg(target_os = "linux")'.dependencies]
+glib = "0.18"
+
+# The updater is a desktop concern: on a phone the application is updated
+# through the store, and the plugin does not support those platforms.
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
+# The `glib` that comes in through `gtk`, `tao` and `wry` is unsound in
+# RUSTSEC-2024-0429, and no release of those crates uses a fixed version yet.
+# The vendored copy carries the upstream fix, one line in `variant_iter.rs`.
+# See `vendor/glib/VENDORED.md` for when it can go.
+[patch.crates-io]
+glib = { path = "../vendor/glib" }

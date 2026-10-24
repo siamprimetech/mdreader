@@ -1,0 +1,191 @@
+name: CI
+
+# Every push and pull request builds the reader for each platform it targets.
+# Nothing is published: the results are attached to the run so they can be
+# looked at, and a tag is what produces a release.
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '22'
+
+jobs:
+  checks:
+    # The checks live in their own workflow, so that the release and the
+    # publishing run the same ones.
+    name: Checks
+    permissions:
+      contents: read
+    uses: ./.github/workflows/checks.yml
+
+  desktop:
+    name: ${{ matrix.name }}
+    # The checks come first. They are quick and they catch most of what
+    # goes wrong, and the checks job already compiles the Rust, so there
+    # is no point in building the reader for three platforms when the
+    # front end does not even type check.
+    needs: checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            targets: x86_64-unknown-linux-gnu
+            binary: md-reader
+            path: src-tauri/target/release/md-reader
+          - name: Windows
+            os: windows-latest
+            targets: x86_64-pc-windows-msvc
+            binary: md-reader.exe
+            path: src-tauri/target/release/md-reader.exe
+          - name: macOS
+            os: macos-latest
+            targets: aarch64-apple-darwin
+            binary: md-reader
+            path: src-tauri/target/release/md-reader
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.name }}
+
+      - name: Install the system libraries Tauri links against
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf
+
+      - run: npm ci
+
+      - name: Build the reader
+        # No bundles and no signatures: this job only proves the code builds
+        # for each platform.
+        run: npx tauri build --no-bundle --no-sign
+
+      - name: Collect the application
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: md-reader-${{ matrix.name }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android
+    # The checks come first: see the desktop job.
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          # The action's default list starts with "tools", which is not a
+          # package the repository knows about, and the action fails on it.
+          packages: 'platform-tools'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: Android
+
+      - name: Install the Android toolchain
+        run: |
+          sdkmanager "platform-tools" "platforms;android-37.0" "build-tools;37.0.0" \
+            "ndk;27.0.12077973" "ndk;27.1.12297006"
+
+      - run: npm ci
+
+      - name: Prepare the Android project
+        run: npx tauri android init --ci
+
+      - name: Build the application
+        run: npx tauri android build --apk
+
+      - name: Collect the application
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: md-reader-Android
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS
+    # The checks come first: see the desktop job.
+    needs: checks
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: iOS
+
+      - run: npm ci
+
+      - name: Prepare the Xcode project
+        run: npx tauri ios init --ci
+
+      - name: Declare the document types
+        run: python3 tools/ios-info-plist.py
+
+      - name: Build the application
+        # The simulator target needs no signing, so the build works on a
+        # runner with no certificates.
+        run: npx tauri ios build --no-sign --target aarch64-sim --ci
+
+      - name: Collect the application
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: md-reader-iOS
+          path: src-tauri/gen/apple/build/arm64-sim/*.app
+          if-no-files-found: error
+          retention-days: 7

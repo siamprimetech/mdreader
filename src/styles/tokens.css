@@ -1,0 +1,179 @@
+/**
+ * Design tokens.
+ *
+ * Two palettes share one set of names: "paper" is a warm, printed page for
+ * daylight; "ink" is the same page at night. Everything else in the app is
+ * built from these values, so the two themes stay in step.
+ */
+
+:root {
+  /* Type stacks. The reader picks between them at runtime. */
+  --font-ui: 'Public Sans Variable', 'Segoe UI', sans-serif;
+  --font-body: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+
+  --font-size-ui: 0.8125rem;
+  --font-size-small: 0.6875rem;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 140ms;
+  --duration-base: 240ms;
+  --duration-slow: 420ms;
+
+  --toolbar-height: 3rem;
+  --gutter: 1.25rem;
+
+  /* Reader knobs; overwritten per-user by core/appearance.ts. */
+  --reader-font-size: 18px;
+  --reader-line-height: 1.7;
+  --reader-letter-spacing: 0em;
+  --reader-word-spacing: 0em;
+  --reader-paragraph-spacing: 1.1em;
+  --reader-heading-scale: 1;
+  --reader-content-width: 720px;
+  --reader-code-font-size: 0.88em;
+  --reader-image-radius: 6px;
+  --reader-text-align: left;
+
+  --accent: #c0442a;
+  --link: #a63a22;
+}
+
+/* Paper: warm, printed, low contrast between ink and stock. */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --paper: #f4efe6;
+  --paper-raised: #fbf8f2;
+  --paper-sunken: #eae2d4;
+  --paper-glass: rgba(251, 248, 242, 0.9);
+  --paper-panel: #fbf8f2;
+
+  --ink: #241e18;
+  --ink-soft: #6b6156;
+  --ink-faint: #9a8f81;
+
+  --rule: #ded4c4;
+  --rule-strong: #c8bba6;
+
+  --shadow-soft: 0 1px 2px rgba(60, 45, 26, 0.06), 0 3px 10px -4px rgba(60, 45, 26, 0.1);
+  --shadow-lift: 0 18px 44px -20px rgba(60, 45, 26, 0.38), 0 2px 10px rgba(60, 45, 26, 0.08);
+  --shadow-panel: 0 24px 60px -24px rgba(60, 45, 26, 0.4);
+
+  --code-bg: #efe8db;
+  --code-border: #ddd2be;
+  --code-comment: #9a9081;
+  --code-keyword: #a8452f;
+  --code-string: #3f7a5e;
+  --code-number: #8a6a1f;
+  --code-title: #2f5e8a;
+  --code-type: #6b4e9b;
+  --code-variable: #7a5a2e;
+  --code-tag: #a8452f;
+  --code-attr: #3f7a5e;
+
+  --hit-bg: rgba(192, 68, 42, 0.18);
+  --hit-active-bg: rgba(192, 68, 42, 0.42);
+}
+
+/* Ink: the same page at night — deep, cool, with a warm cast in the text. */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --paper: #14161b;
+  --paper-raised: #1b1e25;
+  --paper-sunken: #101216;
+  --paper-glass: rgba(27, 30, 37, 0.92);
+  --paper-panel: #1b1e25;
+
+  --ink: #e9e4d9;
+  --ink-soft: #a29b8f;
+  --ink-faint: #7b7469;
+
+  --rule: #2b2f38;
+  --rule-strong: #3c414c;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 10px -4px rgba(0, 0, 0, 0.5);
+  --shadow-lift: 0 18px 44px -20px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+
+  --code-bg: #1a1d24;
+  --code-border: #2e323b;
+  --code-comment: #7c7568;
+  --code-keyword: #e4795c;
+  --code-string: #7fc79b;
+  --code-number: #d9b45e;
+  --code-title: #7bb0e0;
+  --code-type: #b69be0;
+  --code-variable: #d0a878;
+  --code-tag: #e4795c;
+  --code-attr: #7fc79b;
+
+  --hit-bg: rgba(228, 121, 92, 0.22);
+  --hit-active-bg: rgba(228, 121, 92, 0.5);
+}
+
+/* The reader's own choice of typeface. */
+[data-body-font='newsreader'] { --font-body: 'Newsreader Variable', Georgia, serif; }
+[data-body-font='literata'] { --font-body: 'Literata Variable', Georgia, serif; }
+[data-body-font='source-serif-4'] { --font-body: 'Source Serif 4 Variable', Georgia, serif; }
+[data-body-font='public-sans'] { --font-body: 'Public Sans Variable', 'Segoe UI', sans-serif; }
+[data-body-font='ibm-plex-sans'] { --font-body: 'IBM Plex Sans Variable', 'Segoe UI', sans-serif; }
+[data-body-font='source-sans-3'] { --font-body: 'Source Sans 3 Variable', 'Segoe UI', sans-serif; }
+
+[data-mono-font='jetbrains-mono'] { --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace; }
+[data-mono-font='ibm-plex-mono'] { --font-mono: 'IBM Plex Mono', ui-monospace, monospace; }
+
+[data-text-align='justify'] { --reader-text-align: justify; }
+[data-text-align='left'] { --reader-text-align: left; }
+
+/*
+ * The same dark palette, for a reader that is following the system.
+ *
+ * Without this the page would paint in the light palette and then change,
+ * which shows up as a flash of the wrong color while the window opens. The
+ * two blocks have to stay the same; the tests check that they do.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    color-scheme: dark;
+
+    --paper: #14161b;
+    --paper-raised: #1b1e25;
+    --paper-sunken: #101216;
+    --paper-glass: rgba(27, 30, 37, 0.92);
+    --paper-panel: #1b1e25;
+
+    --ink: #e9e4d9;
+    --ink-soft: #a29b8f;
+    --ink-faint: #7b7469;
+
+    --rule: #2b2f38;
+    --rule-strong: #3c414c;
+
+    --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 3px 10px -4px rgba(0, 0, 0, 0.5);
+    --shadow-lift: 0 18px 44px -20px rgba(0, 0, 0, 0.8), 0 2px 10px rgba(0, 0, 0, 0.4);
+    --shadow-panel: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
+
+    --code-bg: #1a1d24;
+    --code-border: #2e323b;
+    --code-comment: #7c7568;
+    --code-keyword: #e4795c;
+    --code-string: #7fc79b;
+    --code-number: #d9b45e;
+    --code-title: #7bb0e0;
+    --code-type: #b69be0;
+    --code-variable: #d0a878;
+    --code-tag: #e4795c;
+    --code-attr: #7fc79b;
+
+    --hit-bg: rgba(228, 121, 92, 0.22);
+    --hit-active-bg: rgba(228, 121, 92, 0.5);
+  }
+}

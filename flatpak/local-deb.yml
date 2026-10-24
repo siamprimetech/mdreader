@@ -1,0 +1,48 @@
+# The local copy of the manifest that does not build the application inside the
+# flatpak: it takes the .deb that was built on this machine and puts it in.
+#
+# It is used to test the packaging without waiting for the SDK extensions of
+# the GNOME SDK, which flatpak will not deploy here. The pull request to
+# Flathub uses the other manifest, which builds everything from source.
+app-id: io.github.siamprimetech.mdreader
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: md-reader
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  - --filesystem=home
+  - --share=network
+
+modules:
+  - name: md-reader
+    buildsystem: simple
+    sources:
+      - type: file
+        path: md-reader.deb
+      - type: file
+        path: ../src-tauri/linux/io.github.siamprimetech.mdreader.metainfo.xml
+      - type: file
+        path: ../src-tauri/icons/source.svg
+      - type: file
+        path: ../src-tauri/icons/128x128@2x.png
+      - type: file
+        path: ../LICENSE.md
+    build-commands:
+      - mkdir deb
+      - ar -x md-reader.deb --output deb
+      - tar -C deb -xf deb/data.tar.gz
+      - install -Dm755 deb/usr/bin/md-reader /app/bin/md-reader
+      - install -Dm644 "deb/usr/share/applications/Simple MD Reader.desktop" /app/share/applications/io.github.siamprimetech.mdreader.desktop
+      - sed -i 's/^Icon=.*/Icon=io.github.siamprimetech.mdreader/' /app/share/applications/io.github.siamprimetech.mdreader.desktop
+      - install -Dm644 deb/usr/share/icons/hicolor/32x32/apps/md-reader.png /app/share/icons/hicolor/32x32/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 deb/usr/share/icons/hicolor/128x128/apps/md-reader.png /app/share/icons/hicolor/128x128/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 deb/usr/share/icons/hicolor/256x256@2/apps/md-reader.png /app/share/icons/hicolor/512x512/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 source.svg /app/share/icons/hicolor/scalable/apps/io.github.siamprimetech.mdreader.svg
+      - install -Dm644 io.github.siamprimetech.mdreader.metainfo.xml /app/share/metainfo/io.github.siamprimetech.mdreader.metainfo.xml
+      - install -Dm644 LICENSE.md /app/share/licenses/io.github.siamprimetech.mdreader/LICENSE

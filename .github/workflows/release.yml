@@ -1,0 +1,548 @@
+name: Release
+
+# A tag builds every package and publishes it for download.
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to publish under'
+        required: true
+        default: 'v1.0.0'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '22'
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  checks:
+    # The checks live in their own workflow, so that the continuous
+    # integration and the publishing run the same ones.
+    name: Checks
+    permissions:
+      contents: read
+    uses: ./.github/workflows/checks.yml
+
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: version
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "publishing $VERSION"
+
+  desktop:
+    name: ${{ matrix.name }}
+    needs: [prepare, checks]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            bundles: appimage,deb,rpm
+            targets: x86_64-unknown-linux-gnu
+            target_argument: ''
+            path: |
+              src-tauri/target/release/bundle/appimage/*.AppImage
+              src-tauri/target/release/bundle/appimage/*.AppImage.sig
+              src-tauri/target/release/bundle/deb/*.deb
+              src-tauri/target/release/bundle/deb/*.deb.sig
+              src-tauri/target/release/bundle/rpm/*.rpm
+              src-tauri/target/release/bundle/rpm/*.rpm.sig
+          - name: Windows
+            os: windows-latest
+            bundles: msi,nsis
+            targets: x86_64-pc-windows-msvc
+            target_argument: ''
+            path: |
+              src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
+              src-tauri/target/release/bundle/nsis/*-setup.exe
+              src-tauri/target/release/bundle/nsis/*-setup.exe.sig
+          - name: macOS
+            os: macos-latest
+            bundles: app,dmg
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+            target_argument: '--target universal-apple-darwin'
+            path: |
+              src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+              src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+              src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-${{ matrix.name }}
+
+      - name: Install the system libraries Tauri links against
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf squashfs-tools
+
+      - run: npm ci
+
+      - name: Build the packages
+        # The step is written in bash, so it says so. Without it the step
+        # runs in PowerShell on the Windows runner, and PowerShell has no
+        # way to break a line with a backslash: the command is cut in two
+        # and the build never starts.
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # The updater artifacts are made for the releases on GitHub and
+          # nowhere else: they are the packages a reader updates itself with,
+          # and they carry a signature made with the private key. A build for
+          # a store has no key and must not ask for one.
+          printf '{"version":"%s","bundle":{"createUpdaterArtifacts":true}}\n' \
+            "${{ needs.prepare.outputs.version }}" > .tauri-version.json
+          cat .tauri-version.json
+          npm run tauri:release -- \
+            --bundles ${{ matrix.bundles }} \
+            ${{ matrix.target_argument }} \
+            --config .tauri-version.json
+
+      - name: Check the packages
+        shell: bash
+        env:
+          PATTERNS: ${{ matrix.path }}
+        run: |
+          set -euo pipefail
+          missing=0
+          while read -r pattern; do
+            [ -n "$pattern" ] || continue
+            case "$pattern" in
+              *.sig) continue ;;
+            esac
+            if compgen -G "$pattern" > /dev/null; then
+              echo "Found $pattern"
+            else
+              echo "::error::Nothing matched $pattern"
+              missing=1
+            fi
+          done <<< "$PATTERNS"
+          echo "What was built:"
+          find src-tauri/target -path '*bundle*' -type f -maxdepth 6 | head -40
+          exit "$missing"
+
+      - name: Collect the packages
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: packages-${{ matrix.name }}
+          path: ${{ matrix.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+  flatpak:
+    name: Flatpak
+    needs: [prepare, checks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-flatpak
+
+      - name: Install the system libraries Tauri links against
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf squashfs-tools flatpak-builder
+
+      - run: npm ci
+
+      - name: Build the Debian package
+        run: npm run tauri build -- -b deb
+
+      - name: Install the runtime of the Flatpak
+        # The reader runs on the GNOME runtime: it is the one that carries
+        # WebKitGTK 4.1, which the reader is built against. The freedesktop
+        # runtime has none.
+        run: |
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user --assumeyes flathub \
+            org.gnome.Platform//50 org.gnome.Sdk//50
+
+      - name: Build the Flatpak
+        run: |
+          cp src-tauri/target/release/bundle/deb/*.deb flatpak/md-reader.deb
+          flatpak-builder --user --force-clean --disable-updates \
+            --repo=flatpak-repo .flatpak-build flatpak/local-deb.yml
+
+      - name: Make the file that is downloaded
+        # The file that is downloaded is a bundle: a single file that holds
+        # the application and can be installed on its own.
+        #
+        # The bundle is made from the repository that the step above built:
+        # the first name is where that repository is, the second is the file
+        # to write and the third is the name of the application. The tool
+        # has no "--user" and the name of the application may not be taken
+        # for the name of a remote, so the old order failed on both counts.
+        run: |
+          flatpak build-bundle --arch=x86_64 flatpak-repo \
+            "Simple MD Reader_${{ needs.prepare.outputs.version }}_amd64.flatpak" \
+            io.github.siamprimetech.mdreader
+          ls -lh *.flatpak
+
+      - name: Check the bundle
+        # The bundle is installed to see that it is whole. The runtime it
+        # needs is already on the runner, so nothing is fetched.
+        run: |
+          flatpak install --user --assumeyes --reinstall --bundle \
+            "Simple MD Reader_${{ needs.prepare.outputs.version }}_amd64.flatpak"
+          flatpak info --user io.github.siamprimetech.mdreader
+
+      - name: Collect the package
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: packages-Flatpak
+          path: "*.flatpak"
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android
+    needs: [prepare, checks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          # The action's default list starts with "tools", which is not a
+          # package the repository knows about, and the action fails on it.
+          packages: 'platform-tools'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-Android
+
+      - name: Install the Android toolchain
+        # The platform of the API 37 comes in the versions 37.0, 37.1 and
+        # 37.2, and there is no plain "platforms;android-37": asking for it
+        # fails, and the build never starts. The NDKs are named as well,
+        # because the build takes the one that is named and not the newest
+        # that is on the machine.
+        run: |
+          sdkmanager "platform-tools" "platforms;android-37.0" \
+            "build-tools;37.0.0" "ndk;27.0.12077973" "ndk;27.1.12297006"
+
+      - run: npm ci
+
+      - name: Prepare the Android project
+        run: npx tauri android init --ci
+
+      - uses: gradle/actions/setup-gradle@v6
+        # The Android build is a Gradle build. This caches the Gradle
+        # distribution, the libraries Gradle downloads and the build cache.
+        with:
+          cache-read-only: false
+
+      - name: Set up the upload key
+        # The same key that signs the bundle sent to Google Play, so the
+        # package in the release can be installed. It is optional: without
+        # it the package is built, but it cannot be installed.
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$PASSWORD" ] || [ -z "$ALIAS" ]; then
+            echo "No upload key is set: the package will not be signed." >&2
+            echo "Set ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and" >&2
+            echo "ANDROID_KEY_ALIAS to sign it." >&2
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE" | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/upload-keystore.jks" || {
+            echo "ANDROID_KEYSTORE_BASE64 is not valid base64." >&2
+            exit 1
+          }
+          echo "The secret holds $(printf '%s' "$KEYSTORE" | tr -d ' \t\r\n' | wc -c) characters."
+          echo "The secret starts with: $(printf '%s' "$KEYSTORE" | tr -d ' \t\r\n' | head -c 12)"
+          echo "The decoded file is $(wc -c < "$RUNNER_TEMP/upload-keystore.jks") bytes."
+          echo "Its sha256 is $(sha256sum "$RUNNER_TEMP/upload-keystore.jks" | cut -d' ' -f1)."
+          echo "Its first bytes are: $(head -c 16 "$RUNNER_TEMP/upload-keystore.jks" | xxd -p)"
+          python3 tools/android-signing.py \
+            --keystore "$RUNNER_TEMP/upload-keystore.jks" \
+            --password "$PASSWORD" \
+            --alias "$ALIAS" \
+            --key-password "${KEY_PASSWORD:-$PASSWORD}"
+
+      - name: Build the application
+        run: npx tauri android build --apk --aab
+
+      - name: Collect the packages
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: packages-Android
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS
+    needs: [prepare, checks]
+    runs-on: macos-latest
+    env:
+      # These two are the App Store Connect credentials. Set them, together
+      # with the key file APPLE_API_KEY_P8, in the repository settings to get
+      # a package for devices. Without them the job still builds, but only
+      # for the simulator.
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      # The team id is not a secret, but it belongs to the account that
+      # signs, so it is read from the repository settings. Tauri never takes
+      # it from the API key: without it the export falls back to the
+      # certificate the tool makes for itself, which Apple refuses.
+      APPLE_DEVELOPMENT_TEAM: ${{ vars.APPLE_DEVELOPMENT_TEAM || secrets.APPLE_DEVELOPMENT_TEAM }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: release-iOS
+
+      - run: npm ci
+
+      - name: Prepare the Xcode project
+        run: |
+          export APPLE_DEVELOPMENT_TEAM="$(bash tools/apple-team.sh)"
+          npx tauri ios init --ci
+
+      - name: Set the app icon
+        run: |
+          set -euo pipefail
+          icons="src-tauri/icons/ios"
+          count=0
+          for dir in $(find src-tauri/gen/apple -type d -name '*.appiconset'); do
+            cp "$icons"/*.png "$dir"/
+            if [ -f "$icons/Contents.json" ]; then
+              cp "$icons/Contents.json" "$dir"/
+            fi
+            count=$((count + 1))
+          done
+          if [ "$count" -eq 0 ]; then
+            echo "No icon set was found in the generated project." >&2
+            exit 1
+          fi
+          echo "Wrote the reader's icon into $count icon sets."
+
+      - name: Put the icons in the bundle
+        run: python3 tools/ios-icon-build-settings.py
+
+      - name: Declare the document types
+        run: python3 tools/ios-info-plist.py
+
+      - name: Write the App Store Connect key
+        if: env.APPLE_API_KEY != '' && env.APPLE_API_ISSUER != ''
+        env:
+          KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "The key file is missing: set APPLE_API_KEY_P8 in the repository settings." >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/apple"
+          printf '%s' "$KEY" > "$RUNNER_TEMP/apple/AuthKey.p8"
+
+      - name: Build the package for devices
+        # A package for a device is signed, and signing needs an Apple
+        # Developer account: a distribution certificate and a provisioning
+        # profile for this identifier. The export fails without them, so
+        # the step only runs when the credentials are there.
+        if: env.APPLE_API_KEY != '' && env.APPLE_API_ISSUER != ''
+        env:
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple/AuthKey.p8
+        run: |
+          # The export needs to know the team. Without it the tool signs
+          # with a certificate it makes for itself and Apple refuses the
+          # package with "No Account for Team".
+          export APPLE_DEVELOPMENT_TEAM="$(bash tools/apple-team.sh)"
+          npx tauri ios build --export-method app-store-connect --target aarch64 --ci
+
+      - name: Collect the package for devices
+        # The package is collected before the build for the simulator, so
+        # that a failure there does not take the package with it: the
+        # condition asks for the steps before it to have gone well.
+        if: env.APPLE_API_KEY != '' && env.APPLE_API_ISSUER != '' && success()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: packages-iOS
+          path: src-tauri/gen/apple/build/arm64/*.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Build the application for the simulator
+        # The simulator needs no signature, so this build works on a runner
+        # with no certificates and no Apple account. It runs even when the
+        # signing above has failed, so there is something to look at.
+        #
+        # The tool wants either the three Apple variables or none of them:
+        # it refuses to start when it finds some of them and not all, and
+        # the job holds two of them in the setting. They are taken away for
+        # this one command, and the build is signed by nothing, which is
+        # what a build for the simulator wants.
+        #
+        # The step does not stop the job when it fails: the package for the
+        # devices is worth keeping, and the job has to end well for the
+        # release to be made.
+        if: always()
+        continue-on-error: true
+        run: |
+          unset APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH
+          npx tauri ios build --no-sign --target aarch64-sim --ci
+
+      - name: Collect the application for the simulator
+        # The application for the simulator is only there to look at, so the
+        # step says a word when it is not there and does not stop the job.
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: packages-iOS-simulator
+          path: src-tauri/gen/apple/build/arm64-sim/*.app
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    name: Publish
+    needs: [prepare, checks, desktop, flatpak, android, ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect every package
+        uses: actions/download-artifact@v8.0.2
+        with:
+          path: packages
+          merge-multiple: true
+
+      - name: Gather the packages
+        # The artifacts keep the folders the packages were built in: the
+        # package of the Linux build is in "appimage", the one of the
+        # Windows build is in "msi", and so on. The manifest and the
+        # release want them all next to each other, so the files are
+        # moved up.
+        #
+        # The application for the simulator is a folder and is left where
+        # it is: it is not a package and it is not published.
+        run: |
+          find packages -type f -not -path 'packages/*.app/*' \
+            -exec mv -t . -- {} +
+          ls -lh
+
+      - name: Write the update manifest
+        run: |
+          python3 tools/make-updater-manifest.py \
+            --version "${{ needs.prepare.outputs.version }}" \
+            --tag "${{ env.RELEASE_TAG }}" \
+            --repository "${{ github.repository }}" \
+            --directory . \
+            --output latest.json
+          cat latest.json
+
+      - name: Write the checksums
+        run: |
+          sha256sum ./*.AppImage ./*.deb ./*.rpm ./*.msi ./*-setup.exe \
+            ./*.dmg ./*.app.tar.gz ./*.apk ./*.aab ./*.ipa ./*.flatpak \
+            > SHA256SUMS 2>/dev/null || true
+          cat SHA256SUMS
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Simple MD Reader ${{ needs.prepare.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(env.RELEASE_TAG, '-') }}
+          generate_release_notes: true
+          files: |
+            *.AppImage
+            *.deb
+            *.rpm
+            *.msi
+            *-setup.exe
+            *.dmg
+            *.app.tar.gz
+            *.apk
+            *.aab
+            *.ipa
+            *.flatpak
+            *.sig
+            latest.json
+            SHA256SUMS

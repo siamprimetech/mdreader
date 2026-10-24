@@ -1,0 +1,69 @@
+name: Checks
+
+# The checks the other workflows run before they build anything.
+#
+# They live here so that there is one set of them and not one per workflow:
+# the continuous integration, the release and the publishing all check the
+# same way, and a change to the checks is made in one place.
+#
+# The workflow is called by the others:
+#
+#   jobs:
+#     checks:
+#       uses: ./.github/workflows/checks.yml
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '22'
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install the system libraries Tauri links against
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev \
+            patchelf squashfs-tools
+
+      - run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build the front end
+        run: npx vite build
+
+      - name: Check the formatting of the Rust
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Lint the Rust
+        # --no-deps keeps the vendored glib out of it: it is not ours to lint,
+        # and it is a copy of somebody else's code.
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --no-deps -- -D warnings
+
+      - name: Check the Rust
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets

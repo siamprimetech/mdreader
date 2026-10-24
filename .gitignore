@@ -1,0 +1,53 @@
+# Build output
+dist/
+dist-ssr/
+
+# Build scratch space
+.build/
+.tauri-version.json
+
+# Research scratch space, the notes and the drafts of the store research
+.research/
+
+# Scratch space of the store asset tools, the frames of the preview films
+store/build/
+
+# Packaged releases
+release/
+
+# The Flatpak: the working directory of the builder, the repository it makes
+# and the scratch installation it reads the SDK from
+.flatpak-build/
+.flatpak-repo/
+.flatpak-home/
+flatpak-repo/
+flatpak/md-reader.deb
+
+# Dependencies
+node_modules/
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Local toolchain, used to build without root
+.toolchain/
+
+# Python
+__pycache__/
+
+# Ruby and fastlane
+.bundle/
+vendor/bundle/
+fastlane/README.md
+fastlane/report.xml
+fastlane/Preview.html
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.iml
+.DS_Store
+*.local
+*.log

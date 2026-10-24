@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy: Simple MD Reader</title>
+<meta name="description" content="Simple MD Reader collects no personal data. It has no accounts, no analytics and no advertising. This policy says what stays on your device and what, if anything, ever leaves it.">
+<meta name="theme-color" content="#f4efe6">
+<link rel="canonical" href="https://siamprimetech.github.io/mdreader/privacy.html">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Privacy policy: Simple MD Reader">
+<meta property="og:description" content="Simple MD Reader collects no personal data: no accounts, no analytics, no advertising. What stays on your device, and what leaves it.">
+<meta property="og:url" content="https://siamprimetech.github.io/mdreader/privacy.html">
+<meta property="og:image" content="https://raw.githubusercontent.com/siamprimetech/mdreader/main/src-tauri/icons/128x128@2x.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%201024%201024'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='0.35'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23C8492C'/%3E%3Cstop%20offset='1'%20stop-color='%239E3019'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='1024'%20height='1024'%20fill='url(%23g)'/%3E%3Cg%20transform='rotate(-4%20512%20512)'%3E%3Crect%20x='236'%20y='176'%20width='552'%20height='672'%20rx='42'%20fill='%23F4EFE6'/%3E%3Cg%20fill='%23241E18'%20opacity='0.66'%3E%3Crect%20x='322'%20y='296'%20width='380'%20height='32'%20rx='16'/%3E%3Crect%20x='322'%20y='392'%20width='380'%20height='32'%20rx='16'/%3E%3Crect%20x='322'%20y='488'%20width='232'%20height='32'%20rx='16'/%3E%3C/g%3E%3Cpath%20d='M306%20636c62%2028%20184%2026%20254-10'%20stroke='%23C0442A'%20stroke-width='36'%20stroke-linecap='round'%20fill='none'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script>
+  /* Read before the first paint, so the page never shows the wrong colors. */
+  (function () {
+    try {
+      var theme = localStorage.getItem('md-reader.theme');
+      if (theme === 'light' || theme === 'dark' || theme === 'system') {
+        document.documentElement.dataset.theme = theme;
+      }
+    } catch (error) {
+      /* A browser that refuses local storage still gets a page. */
+    }
+  })();
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="./">
+      <svg class="brand__mark" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="ground" x1="0" y1="0" x2="0.35" y2="1">
+            <stop offset="0" stop-color="#C8492C" />
+            <stop offset="1" stop-color="#9E3019" />
+          </linearGradient>
+        </defs>
+        <rect width="1024" height="1024" fill="url(#ground)" />
+        <g transform="rotate(-4 512 512)">
+          <rect x="236" y="176" width="552" height="672" rx="42" fill="#F4EFE6" />
+          <g fill="#241E18" opacity="0.66">
+            <rect x="322" y="296" width="380" height="32" rx="16" />
+            <rect x="322" y="392" width="380" height="32" rx="16" />
+            <rect x="322" y="488" width="232" height="32" rx="16" />
+          </g>
+          <path d="M306 636c62 28 184 26 254-10" stroke="#C0442A" stroke-width="36" stroke-linecap="round" fill="none" />
+        </g>
+      </svg>
+      <span class="brand__name">Simple MD Reader</span>
+    </a>
+
+    <nav class="nav" id="site-nav" aria-label="Site">
+      <a href="./">Home</a>
+      <a href="#contact">Contact</a>
+      <a href="https://github.com/siamprimetech/mdreader">GitHub</a>
+    </nav>
+
+    <div class="segmented" role="group" aria-label="Theme">
+      <button type="button" data-theme-choice="light" aria-pressed="false" title="Light">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="8" cy="8" r="3.1"/>
+          <path d="M8 1.4v1.6M8 13v1.6M1.4 8H3M13 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" stroke-linecap="round"/>
+        </svg>
+        <span class="visually-hidden">Light</span>
+      </button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false" title="Dark">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M13.2 9.6A5.8 5.8 0 016.4 2.8a5.8 5.8 0 106.8 6.8z" stroke-linejoin="round"/>
+        </svg>
+        <span class="visually-hidden">Dark</span>
+      </button>
+      <button type="button" data-theme-choice="system" aria-pressed="true" title="Follow the system">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="1.8" y="2.6" width="12.4" height="8.6" rx="1.6"/>
+          <path d="M5.6 13.4h4.8" stroke-linecap="round"/>
+        </svg>
+        <span class="visually-hidden">Follow the system</span>
+      </button>
+    </div>
+
+    <button class="burger" type="button" data-menu-toggle aria-expanded="false" aria-controls="site-nav" title="Menu">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <path d="M2.4 4.4h11.2M2.4 8h11.2M2.4 11.6h11.2" stroke-linecap="round"/>
+      </svg>
+      <span class="visually-hidden">Menu</span>
+    </button>
+  </div>
+</header>
+
+<header class="pagehead">
+  <p class="eyebrow">Simple MD Reader</p>
+  <h1>Privacy policy</h1>
+  <p class="standfirst">
+    Simple MD Reader collects no personal information. It has no accounts, no analytics and no advertising, so there is very
+    little policy to write.
+  </p>
+  <ul class="meta">
+    <li>Last updated 22 October 2026</li>
+    <li>Covers com.siamprimetech.mdreader</li>
+    <li>No cookies, no tracking, no third-party requests</li>
+  </ul>
+</header>
+
+
+
+<div class="privacy">
+
+<nav class="contents" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#short-version">The short version</a></li>
+    <li><a href="#who-we-are">Who we are</a></li>
+    <li><a href="#what-we-do-not-do">What the reader does not do</a></li>
+    <li><a href="#stays-on-device">What stays on your device</a></li>
+    <li><a href="#leaves-your-device">What leaves your device</a></li>
+    <li><a href="#permissions">Permissions</a></li>
+    <li><a href="#third-parties">Fonts, libraries and third parties</a></li>
+    <li><a href="#retention">Retention and deletion</a></li>
+    <li><a href="#children">Children</a></li>
+    <li><a href="#security">Security</a></li>
+    <li><a href="#your-rights">Your rights</a></li>
+    <li><a href="#changes">Changes to this policy</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+</nav>
+
+<article class="prose">
+  <h2 id="short-version">The short version</h2>
+  <p>
+    The reader collects no personal information. It sends nothing about you, your documents or your device to us, and
+    it sells and shares nothing with anyone. The only network requests it ever makes are the ones you ask for:
+    checking whether a newer version exists, and loading images that a document itself points at.
+  </p>
+
+  <div class="callout">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <circle cx="10" cy="10" r="8"/><path d="M10 6.2v4.6" stroke-linecap="round"/><circle cx="10" cy="13.6" r="0.9" fill="currentColor" stroke="none"/>
+    </svg>
+    <p>
+      This policy is about the application. The page you are reading is a plain HTML file: it sets no cookies, sends
+      nothing to anyone, and loads nothing from anywhere else. The only script on it is the theme switch in the corner,
+      which keeps your choice in this browser and nowhere else.
+    </p>
+  </div>
+
+  <h2 id="who-we-are">Who we are</h2>
+  <p>
+    Siam Prime Tech ("we", "us") is the developer of Simple MD Reader. This policy covers the Simple MD Reader applications
+    published under the <code>com.siamprimetech.mdreader</code> identifier, on Google Play and the Apple App Store.
+    Write to us through the
+    <a href="https://github.com/siamprimetech/mdreader/issues">issue tracker</a>, or through the
+    <a href="https://github.com/siamprimetech/mdreader/security/advisories">security advisories</a>
+    if it is about a problem with the reader.
+  </p>
+
+  <h2 id="what-we-do-not-do">What the reader does not do</h2>
+  <ul>
+    <li>It does not collect analytics, telemetry or usage statistics.</li>
+    <li>It does not contain advertising or ad networks.</li>
+    <li>It does not ask for an account, a sign-in or a profile.</li>
+    <li>It does not send crash reports or diagnostics.</li>
+    <li>It does not show advertising, and it does not build a profile of you.</li>
+    <li>It does not upload, read or modify your documents beyond opening the ones you ask it to.</li>
+  </ul>
+
+  <h2 id="stays-on-device">What stays on your device</h2>
+  <p>
+    Two things are kept, and both are kept locally, on your device, in the application's own storage. Nothing about
+    you is kept on our side: we run no servers for the reader and hold no database of readers.
+  </p>
+
+  <div class="table-wrap">
+    <table>
+      <caption>What is stored, and why</caption>
+      <thead>
+        <tr>
+          <th scope="col">What</th>
+          <th scope="col">Why</th>
+          <th scope="col">Where</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Your settings</td>
+          <td>Theme, color palette, typeface and text size, so the reader looks the way you left it.</td>
+          <td>Local storage</td>
+        </tr>
+        <tr>
+          <td>The documents you opened recently</td>
+          <td>The file path and the title only, so the reader can offer them back to you.</td>
+          <td>Local storage</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The reader never keeps a copy of a document's contents. It never modifies a file, and it never writes a file
+    because of something in one.
+  </p>
+
+  <h2 id="leaves-your-device">What leaves your device, and when</h2>
+  <p>
+    There are exactly three cases, and the first two happen only when you ask for them.
+  </p>
+  <ol>
+    <li>
+      <strong>Checking for an update.</strong> When you press "Check for updates" in the about window, the reader
+      asks GitHub for the latest release, and on the desktop it also fetches the release manifest and the update
+      itself from <code>github.com/siamprimetech/mdreader</code>. These are ordinary HTTPS requests to GitHub. GitHub
+      sees them as any server sees any request, including your IP address. We do not receive, log or store any of it.
+    </li>
+    <li>
+      <strong>Images inside a document.</strong> If a markdown document refers to an image that lives on the web, the
+      reader loads that image from the address the document gives. Whoever owns that address sees the request, exactly
+      as they would if you opened the document in a browser. Nothing is sent to us.
+    </li>
+    <li>
+      <strong>Links you click.</strong> Links in a document open in your browser rather than inside the reader. From
+      that point on the website's own policy applies, not this one.
+    </li>
+  </ol>
+  <p>Nothing else in the application touches the network.</p>
+
+  <h2 id="permissions">Permissions, and what they are for</h2>
+  <div class="table-wrap">
+    <table>
+      <caption>The permissions the reader asks for</caption>
+      <thead>
+        <tr>
+          <th scope="col">Permission</th>
+          <th scope="col">Why it asks for it</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Access to files you choose</td>
+          <td>
+            The reader opens documents through the system's own file picker, or through "Open with" from the file
+            manager. On Android it is granted access only to the file you handed it.
+          </td>
+        </tr>
+        <tr>
+          <td>Network access</td>
+          <td>
+            The update check, and images in a document that point at the web. On Android this is the
+            <code>INTERNET</code> permission.
+          </td>
+        </tr>
+        <tr>
+          <td>Clipboard</td>
+          <td>
+            Pasting markdown into the reader, which opens it as a new document. It uses the system's own paste action
+            and reads only what you paste.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The reader does not ask for the camera, the microphone, location, contacts, SMS, phone state or the photo
+    library, and it does not ask for broad storage access.
+  </p>
+
+  <h2 id="third-parties">Fonts, libraries and third parties</h2>
+  <p>
+    The reader bundles its typefaces locally, so it never asks a font service for anything, and it never talks to
+    Google Fonts or any other content delivery network. Its libraries are open source, and every license that applies
+    to them is listed in the project's license file.
+  </p>
+  <p>
+    The one third party involved is <strong>GitHub, Inc.</strong>, which hosts the project, the releases and the
+    update manifest. Requests to GitHub are handled under
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement">GitHub's privacy
+    policy</a>, which is between you and GitHub, not with us.
+  </p>
+
+  <h2 id="retention">Data retention and deletion</h2>
+  <p>
+    The settings and the recent documents list live on your device only. You can erase the history from within the
+    reader, and removing the application removes the rest. Because we hold no copy of anything, there is nothing for
+    us to keep, export or delete on request, but if you would like something done anyway, write to us and we will
+    do it.
+  </p>
+
+  <h2 id="children">Children</h2>
+  <p>
+    The reader is a document viewer, and it is not directed at children. Because it collects no personal information
+    at all, it collects none from children either.
+  </p>
+
+  <h2 id="security">Security</h2>
+  <p>
+    The reader sanitises the markdown it displays, so a document cannot run code or reach into the application, and
+    every update is checked against a signing key before it is installed. If you find a way around any of it, please
+    tell us through the project's security advisories.
+  </p>
+
+  <h2 id="your-rights">Your rights</h2>
+  <p>
+    Depending on where you live, you may have rights over personal data: to see it, to correct it, to erase it, to
+    object to its processing, or to complain to a regulator. Because the reader collects no personal data and shares
+    none, there is nothing for us to give you, change or erase. If you think we hold something about you, write to us
+    and we will look into it and answer.
+  </p>
+  <p>We do not transfer personal data across borders, for the same reason.</p>
+
+  <h2 id="changes">Changes to this policy</h2>
+  <p>
+    If this policy changes, the date at the top of it changes with it, and the change is mentioned in the release
+    notes of the version it applies to.
+  </p>
+
+  <h2 id="contact">Contact</h2>
+  <p>
+    <strong>Siam Prime Tech</strong><br>
+    Issues: <a href="https://github.com/siamprimetech/mdreader/issues">github.com/siamprimetech/mdreader/issues</a><br>
+    Advisories: <a href="https://github.com/siamprimetech/mdreader/security/advisories">github.com/siamprimetech/mdreader/security/advisories</a><br>
+    Project: <a href="https://github.com/siamprimetech/mdreader">github.com/siamprimetech/mdreader</a>
+  </p>
+</article>
+
+</div>
+
+<footer class="footer">
+  <p class="footer__note">
+    This policy also lives in the project repository as
+    <a href="https://github.com/siamprimetech/mdreader/blob/main/PRIVACY.md">PRIVACY.md</a>, where it is versioned
+    with the application.
+  </p>
+  <ul>
+    <li><a href="./">Home</a></li>
+    <li><a href="https://github.com/siamprimetech/mdreader">Source</a></li>
+    <li><a href="https://github.com/siamprimetech/mdreader/issues">Issues</a></li>
+  </ul>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

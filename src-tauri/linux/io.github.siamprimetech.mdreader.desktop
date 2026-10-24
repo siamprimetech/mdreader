@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Simple MD Reader
+Comment=Read markdown files
+Exec=md-reader
+Icon=io.github.siamprimetech.mdreader
+Terminal=false
+Categories=Utility;Viewer;TextEditor;
+MimeType=text/markdown;text/x-markdown;text/plain;
+Keywords=markdown;md;mdx;reader;text;document;
+StartupNotify=true
+StartupWMClass=md-reader

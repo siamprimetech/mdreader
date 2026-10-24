@@ -1,0 +1,88 @@
+# The local copy of the manifest: it builds the working tree instead of the
+# commit that Flathub uses. It is not part of the pull request.
+#
+# Flathub takes the manifest from the top level of the pull request, so this
+# file is copied there as it is. The build has no network: every dependency is
+# a source, and the two JSON files next to this manifest hold them.
+#
+# The sources of the npm packages and of the Rust crates are generated:
+#
+#   flatpak-node-generator --no-requests-cache -o generated-sources.json npm package-lock.json
+#   python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py -o cargo-sources.json src-tauri/Cargo.lock
+#
+# The runtime is the newest one on Flathub. The node and rust extensions of
+# the SDK are the ones that build the front end and the shell.
+app-id: io.github.siamprimitech.mdreader
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: md-reader
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  # The reader opens the files of the user, whatever they are.
+  - --filesystem=home
+  # The web view of the shell talks to the page it shows.
+  - --share=network
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node22//25.08
+  - org.freedesktop.Sdk.Extension.rust-stable//25.08
+
+modules:
+  - name: md-reader
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/node22/bin:/usr/lib/sdk/rust-stable/bin
+      env:
+        HOME: /run/build/md-reader
+        XDG_CACHE_HOME: /run/build/md-reader/flatpak-node/cache
+        npm_config_cache: /run/build/md-reader/flatpak-node/npm-cache
+        CARGO_HOME: /run/build/md-reader/cargo-home
+        CARGO_NET_OFFLINE: 'true'
+        # A copy that comes from a package repository is updated by that
+        # repository, so the reader does not offer to update itself.
+        VITE_STORE_BUILD: '1'
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - .flatpak-build
+          - .flatpak-home
+          - .flatpak-repo
+          - .research
+          - node_modules
+          - release
+          - site
+          - src-tauri/gen
+          - src-tauri/target
+          - store
+      - cargo-sources.json
+      - generated-sources.json
+    build-commands:
+      # The front end and the shell, from the crates that came along.
+      - npm ci --offline --no-audit --no-fund
+      - mkdir -p .cargo
+      - cp cargo/config .cargo/config.toml
+      - npm run tauri build -- -b deb
+      # The package that Tauri made is taken apart, and the files are put
+      # where the runtime expects them.
+      - mkdir deb
+      - ar -x src-tauri/target/release/bundle/deb/*.deb --output deb
+      - tar -C deb -xf deb/data.tar.gz
+      - install -Dm755 deb/usr/bin/md-reader /app/bin/md-reader
+      # The desktop file of the package is renamed after the application, and
+      # the icon of it is named the same way.
+      - install -Dm644 deb/usr/share/applications/md-reader.desktop /app/share/applications/io.github.siamprimetech.mdreader.desktop
+      - sed -i 's/^Icon=.*/Icon=io.github.siamprimetech.mdreader/' /app/share/applications/io.github.siamprimitech.mdreader.desktop
+      - install -Dm644 src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.siamprimitech.mdreader.png
+      - install -Dm644 src-tauri/icons/64x64.png /app/share/icons/hicolor/64x64/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/io.github.siamprimetech.mdreader.png
+      - install -Dm644 src-tauri/icons/source.svg /app/share/icons/hicolor/scalable/apps/io.github.siamprimetech.mdreader.svg
+      - install -Dm644 src-tauri/linux/io.github.siamprimetech.mdreader.metainfo.xml /app/share/metainfo/io.github.siamprimitech.mdreader.metainfo.xml
+      - install -Dm644 LICENSE.md /app/share/licenses/io.github.siamprimetech.mdreader/LICENSE

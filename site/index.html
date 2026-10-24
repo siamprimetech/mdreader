@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simple MD Reader: opens and reads markdown files</title>
+<meta name="description" content="Simple MD Reader opens and reads markdown files on Linux, Windows, macOS, iOS and Android. One self-contained binary, no runtime needed, and it opens in about a tenth of a second.">
+<meta name="theme-color" content="#f4efe6">
+<link rel="canonical" href="https://siamprimetech.github.io/mdreader/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Simple MD Reader: opens and reads markdown files">
+<meta property="og:description" content="One self-contained binary for Linux, Windows, macOS, iOS and Android. No runtime needed.">
+<meta property="og:url" content="https://siamprimetech.github.io/mdreader/">
+<meta property="og:image" content="https://raw.githubusercontent.com/siamprimetech/mdreader/main/src-tauri/icons/128x128@2x.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%201024%201024'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='0.35'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%23C8492C'/%3E%3Cstop%20offset='1'%20stop-color='%239E3019'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='1024'%20height='1024'%20fill='url(%23g)'/%3E%3Cg%20transform='rotate(-4%20512%20512)'%3E%3Crect%20x='236'%20y='176'%20width='552'%20height='672'%20rx='42'%20fill='%23F4EFE6'/%3E%3Cg%20fill='%23241E18'%20opacity='0.66'%3E%3Crect%20x='322'%20y='296'%20width='380'%20height='32'%20rx='16'/%3E%3Crect%20x='322'%20y='392'%20width='380'%20height='32'%20rx='16'/%3E%3Crect%20x='322'%20y='488'%20width='232'%20height='32'%20rx='16'/%3E%3C/g%3E%3Cpath%20d='M306%20636c62%2028%20184%2026%20254-10'%20stroke='%23C0442A'%20stroke-width='36'%20stroke-linecap='round'%20fill='none'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script>
+  /* Read before the first paint, so the page never shows the wrong colors. */
+  (function () {
+    try {
+      var theme = localStorage.getItem('md-reader.theme');
+      if (theme === 'light' || theme === 'dark' || theme === 'system') {
+        document.documentElement.dataset.theme = theme;
+      }
+    } catch (error) {
+      /* A browser that refuses local storage still gets a page. */
+    }
+  })();
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="./">
+      <svg class="brand__mark" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="ground" x1="0" y1="0" x2="0.35" y2="1">
+            <stop offset="0" stop-color="#C8492C" />
+            <stop offset="1" stop-color="#9E3019" />
+          </linearGradient>
+        </defs>
+        <rect width="1024" height="1024" fill="url(#ground)" />
+        <g transform="rotate(-4 512 512)">
+          <rect x="236" y="176" width="552" height="672" rx="42" fill="#F4EFE6" />
+          <g fill="#241E18" opacity="0.66">
+            <rect x="322" y="296" width="380" height="32" rx="16" />
+            <rect x="322" y="392" width="380" height="32" rx="16" />
+            <rect x="322" y="488" width="232" height="32" rx="16" />
+          </g>
+          <path d="M306 636c62 28 184 26 254-10" stroke="#C0442A" stroke-width="36" stroke-linecap="round" fill="none" />
+        </g>
+      </svg>
+      <span class="brand__name">Simple MD Reader</span>
+    </a>
+
+    <nav class="nav" id="site-nav" aria-label="Site">
+      <a href="#features">What it does</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#get-it">Get it</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/siamprimetech/mdreader">GitHub</a>
+    </nav>
+
+    <div class="segmented" role="group" aria-label="Theme">
+      <button type="button" data-theme-choice="light" aria-pressed="false" title="Light">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="8" cy="8" r="3.1"/>
+          <path d="M8 1.4v1.6M8 13v1.6M1.4 8H3M13 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1" stroke-linecap="round"/>
+        </svg>
+        <span class="visually-hidden">Light</span>
+      </button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false" title="Dark">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M13.2 9.6A5.8 5.8 0 016.4 2.8a5.8 5.8 0 106.8 6.8z" stroke-linejoin="round"/>
+        </svg>
+        <span class="visually-hidden">Dark</span>
+      </button>
+      <button type="button" data-theme-choice="system" aria-pressed="true" title="Follow the system">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="1.8" y="2.6" width="12.4" height="8.6" rx="1.6"/>
+          <path d="M5.6 13.4h4.8" stroke-linecap="round"/>
+        </svg>
+        <span class="visually-hidden">Follow the system</span>
+      </button>
+    </div>
+
+    <button class="burger" type="button" data-menu-toggle aria-expanded="false" aria-controls="site-nav" title="Menu">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <path d="M2.4 4.4h11.2M2.4 8h11.2M2.4 11.6h11.2" stroke-linecap="round"/>
+      </svg>
+      <span class="visually-hidden">Menu</span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+<section class="hero">
+  <svg class="hero__icon" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="ground-hero" x1="0" y1="0" x2="0.35" y2="1">
+        <stop offset="0" stop-color="#C8492C" />
+        <stop offset="1" stop-color="#9E3019" />
+      </linearGradient>
+    </defs>
+    <rect width="1024" height="1024" fill="url(#ground-hero)" />
+    <g transform="rotate(-4 512 512)">
+      <rect x="236" y="176" width="552" height="672" rx="42" fill="#F4EFE6" />
+      <g fill="#241E18" opacity="0.66">
+        <rect x="322" y="296" width="380" height="32" rx="16" />
+        <rect x="322" y="392" width="380" height="32" rx="16" />
+        <rect x="322" y="488" width="232" height="32" rx="16" />
+      </g>
+      <path d="M306 636c62 28 184 26 254-10" stroke="#C0442A" stroke-width="36" stroke-linecap="round" fill="none" />
+    </g>
+  </svg>
+
+  <h1>Opens and reads markdown files.</h1>
+
+  <p class="hero__standfirst">
+    One codebase, built with Tauri v2, for Linux,
+    Windows, macOS, iOS and Android. Opens .md, .markdown, .mdown, .mkd and .mdx files,
+    and never writes to them.
+  </p>
+
+  <div class="hero__actions">
+    <a class="button button--primary" href="https://github.com/siamprimetech/mdreader/releases/latest">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <path d="M8 1.8v8.4M4.9 7.3L8 10.4l3.1-3.1M2.4 12.4v1.2h11.2v-1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Download
+    </a>
+    <a class="button" href="https://github.com/siamprimetech/mdreader">Source on GitHub</a>
+  </div>
+
+  <ul class="chips">
+    <li>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M8 1.8l5.4 2.6v3.6c0 3.1-2.2 5.4-5.4 6.6-3.2-1.2-5.4-3.5-5.4-6.6V4.2L8 1.8z" stroke-linejoin="round"/>
+      </svg>
+      Nothing collected
+    </li>
+    <li>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.2"/><path d="M8 4.8V8l2.3 1.6" stroke-linecap="round"/>
+      </svg>
+      Up in about a tenth of a second
+    </li>
+    <li>
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M8 2.2v7.4M5.3 7.1L8 9.8l2.7-2.7M2.8 12.4v1.4h10.4v-1.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Updates itself
+    </li>
+    <li>MIT license</li>
+  </ul>
+
+  <figure class="shot" style="margin: 3rem 0 0;">
+    <img src="images/reader-light.webp" width="1180" height="620" alt="Simple MD Reader showing a markdown document in the paper theme, with the toolbar above it and the file name and word count below.">
+  </figure>
+</section>
+
+<section class="section" id="features">
+  <div class="section__head">
+    <p class="eyebrow">What it does</p>
+    <h2>Opens, reads, searches</h2>
+    <p>Opens .md, .markdown, .mdown, .mkd and .mdx files. Searches inside them, lists the headings, and never writes to them.</p>
+  </div>
+
+  <div class="cards">
+    <article class="card">
+      <div class="card__icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M2.6 5.4h5.2l1.5 2h8.1v7.4a1.6 1.6 0 01-1.6 1.6H4.2a1.6 1.6 0 01-1.6-1.6V5.4z" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>Opens three ways</h3>
+      <p>Press <strong>Open a file</strong>, drop a <code>.md</code> anywhere on the window, or paste markdown straight in. A file opened from your file manager opens too.</p>
+    </article>
+
+    <article class="card">
+      <div class="card__icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M3.4 4.6h13.2M3.4 9h8.4M3.4 13.4h5.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>Finds its way around</h3>
+      <p>The outline lists every heading, and clicking one scrolls to it. The find bar steps through the matches with <code>Enter</code> and <code>Shift</code>+<code>Enter</code>.</p>
+    </article>
+
+    <article class="card">
+      <div class="card__icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M10 2.4l2.1 4.6 5 .5-3.8 3.4 1.1 4.9L10 13.4l-4.4 2.4 1.1-4.9L2.9 7.5l5-.5L10 2.4z" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>Adjustable to taste</h3>
+      <p>Typeface, size, spacing, column width, paper grain and seven color palettes. Every change applies the moment you make it.</p>
+    </article>
+
+    <article class="card">
+      <div class="card__icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <circle cx="10" cy="10" r="7"/><path d="M10 5.8V10l2.8 1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h3>Remembers what you read</h3>
+      <p>The history keeps the documents you opened, by path, so it can offer them back. The list stays on your device.</p>
+    </article>
+
+    <article class="card">
+      <div class="card__icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M11 2.6L4.4 10.4h4l-1 7 7.2-8.2h-4.2l.6-6.6z" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>Opens quickly</h3>
+      <p>The syntax highlighter is fetched only when a document contains code, and the settings drawer is built only when it is opened. The window is painting in about a tenth of a second.</p>
+    </article>
+
+    <article class="card">
+      <div class="card__icon">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M10 2.6v9.2M6.6 8.6L10 12l3.4-3.4M3.6 14.4v1.8h12.8v-1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>Updates itself</h3>
+      <p>The about window asks GitHub whether a newer release exists and offers to install it. Every update is signed, and the signature is checked before anything is installed.</p>
+    </article>
+  </div>
+</section>
+
+<section class="section" id="screenshots">
+  <div class="section__head">
+    <p class="eyebrow">Paper and ink</p>
+    <h2>Two pages, one reading</h2>
+    <p>A warm printed page for daylight, and the same page at night. Switching wipes across from wherever you clicked.</p>
+  </div>
+
+  <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));">
+    <figure class="shot">
+      <img src="images/reader-light.webp" width="1180" height="620" alt="The reader in the paper theme: a warm, printed page with dark ink.">
+      <figcaption>Paper: a warm printed page for daylight.</figcaption>
+    </figure>
+    <figure class="shot">
+      <img src="images/reader-dark.webp" width="1180" height="620" alt="The reader in the ink theme: a deep page with warm, off-white text.">
+      <figcaption>Ink: the same page at night.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <p class="eyebrow">Everything is a setting</p>
+    <h2>Nothing here is fixed</h2>
+    <p>Six groups of settings, each one applied the instant you touch it.</p>
+  </div>
+
+  <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));">
+    <article class="card"><h3>Appearance</h3><p>Light, dark, or follow the system. Paper grain is yours to keep or drop.</p></article>
+    <article class="card"><h3>Palette</h3><p>Seven color schemes, each setting the accent and the link color together.</p></article>
+    <article class="card"><h3>Links</h3><p>The color of a link, and whether links are always underlined or only on hover.</p></article>
+    <article class="card"><h3>Typography</h3><p>Body face, code face, size, line height, letter and word spacing, paragraph spacing, heading scale, alignment.</p></article>
+    <article class="card"><h3>Layout</h3><p>How wide the column is, and how square the corners of an image are.</p></article>
+    <article class="card"><h3>Code</h3><p>The size of code, and nothing else. The highlighting does the rest.</p></article>
+  </div>
+
+  <figure class="shot" style="margin: 2.5rem 0 0;">
+    <img src="images/reader-settings.webp" width="1180" height="820" alt="The reading settings drawer, open beside the document, showing the theme control, the seven color palettes and the accent and link colors.">
+    <figcaption>The settings drawer, over the document it is changing.</figcaption>
+  </figure>
+</section>
+
+<section class="section" id="get-it">
+  <div class="section__head">
+    <p class="eyebrow">Get it</p>
+    <h2>One binary, nothing to install beside it</h2>
+    <p>No Node.js, no runtime, no package manager. You download a file, you run it, you are reading.</p>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Platform</th>
+          <th scope="col">What you get</th>
+          <th scope="col">How to run it</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Linux</td>
+          <td><code>.AppImage</code>, <code>.deb</code>, <code>.rpm</code></td>
+          <td>Run the AppImage, or install the package. The AppImage carries everything it needs and runs from Alpine to Arch.</td>
+        </tr>
+        <tr>
+          <td>Windows</td>
+          <td><code>.msi</code>, <code>-setup.exe</code></td>
+          <td>Run the installer, or the portable executable.</td>
+        </tr>
+        <tr>
+          <td>macOS</td>
+          <td><code>.dmg</code>, <code>.app</code></td>
+          <td>Drag the app to Applications.</td>
+        </tr>
+        <tr>
+          <td>iOS</td>
+          <td><code>.ipa</code></td>
+          <td>Install through Xcode or TestFlight.</td>
+        </tr>
+        <tr>
+          <td>Android</td>
+          <td><code>.apk</code>, <code>.aab</code></td>
+          <td>Install the package.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="hero__actions" style="margin-top: 2rem;">
+    <a class="button button--primary" href="https://github.com/siamprimetech/mdreader/releases/latest">Go to the releases</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section__head">
+    <p class="eyebrow">Under the hood</p>
+    <h2>The short version</h2>
+  </div>
+
+  <div class="facts">
+    <div class="fact"><span class="fact__value">~0.1 s</span><span class="fact__label">until the window is painting</span></div>
+    <div class="fact"><span class="fact__value">1</span><span class="fact__label">binary, and nothing beside it</span></div>
+    <div class="fact"><span class="fact__value">8</span><span class="fact__label">typefaces, bundled locally</span></div>
+    <div class="fact"><span class="fact__value">0</span><span class="fact__label">bytes of personal data collected</span></div>
+    <div class="fact"><span class="fact__value">MIT</span><span class="fact__label">the license</span></div>
+  </div>
+</section>
+
+<section class="section" id="project">
+  <div class="section__head">
+    <p class="eyebrow">The project</p>
+    <h2>Read more, or take it further</h2>
+    <p>The source is open. The reader is small enough to read in an afternoon, and the parts that matter are the parts that are tested.</p>
+  </div>
+
+  <div class="cards">
+    <article class="card">
+      <h3>Source</h3>
+      <p>The whole project, in Rust and TypeScript, with a test suite that runs on Node's own runner. <a href="https://github.com/siamprimetech/mdreader">github.com/siamprimetech/mdreader</a></p>
+    </article>
+    <article class="card">
+      <h3>Privacy</h3>
+      <p>What stays on your device, and the three things that ever leave it. <a href="privacy.html">Read the policy</a></p>
+    </article>
+    <article class="card">
+      <h3>Licenses</h3>
+      <p>Every bundled library and typeface, with the license that applies to each. <a href="https://github.com/siamprimetech/mdreader/blob/main/THIRD_PARTY_LICENSES.md">See the list</a></p>
+    </article>
+    <article class="card">
+      <h3>Security</h3>
+      <p>How documents are sanitised, how updates are signed, and how to report a problem privately. <a href="https://github.com/siamprimetech/mdreader/blob/main/SECURITY.md">The policy</a></p>
+    </article>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <p class="footer__note">Simple MD Reader, a markdown reader for Linux, Windows, macOS, iOS and Android.<br>Opens .md, .markdown, .mdown, .mkd and .mdx files.</p>
+  <ul>
+    <li><a href="https://github.com/siamprimetech/mdreader">Source</a></li>
+    <li><a href="https://github.com/siamprimetech/mdreader/releases/latest">Releases</a></li>
+    <li><a href="privacy.html">Privacy</a></li>
+    <li><a href="https://github.com/siamprimetech/mdreader/issues">Issues</a></li>
+  </ul>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

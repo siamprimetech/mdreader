@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.siamprimetech.mdreader</id>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Simple MD Reader</name>
+  <summary>A reader for markdown files</summary>
+
+  <description>
+    <p>
+      Simple MD Reader opens and reads markdown files. It shows the text of the file as it is written down, keeps the
+      headings in a list beside it, and lets you search through the text.
+    </p>
+    <p>
+      It opens .md, .markdown, .mdown, .mkd and .mdx files. A file can be opened from the file picker, by dropping it on
+      the window, from the clipboard, or from the file manager of the system.
+    </p>
+    <p>Some of what it does:</p>
+    <ul>
+      <li>Reads .md, .markdown, .mdown, .mkd and .mdx files</li>
+      <li>Lists the headings of the document beside the text</li>
+      <li>Searches inside the document</li>
+      <li>Remembers what was read, so a document is easy to find again</li>
+      <li>Chooses the colours of the text and of the page, and keeps them between sessions</li>
+      <li>Never writes to the file: the reader only reads</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.siamprimetech.mdreader.desktop</launchable>
+
+  <developer id="com.siamprimetech">
+    <name>Siam Prime Tech</name>
+  </developer>
+
+  <url type="homepage">https://siamprimetech.github.io/mdreader/</url>
+  <url type="bugtracker">https://github.com/siamprimetech/mdreader/issues</url>
+  <url type="vcs-browser">https://github.com/siamprimetech/mdreader</url>
+
+  <content_rating type="oars-1.1"/>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://siamprimetech.github.io/mdreader/images/reader-light.png</image>
+      <caption>A markdown file, with its headings beside the text</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://siamprimetech.github.io/mdreader/images/reader-dark.png</image>
+      <caption>The same file in the dark colours</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://siamprimetech.github.io/mdreader/images/reader-settings.png</image>
+      <caption>The settings of the reader</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.0.0" date="2026-10-23"/>
+  </releases>
+</component>

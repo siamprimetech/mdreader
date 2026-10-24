@@ -1,0 +1,89 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Simple MD Reader",
+  "version": "1.0.0",
+  "identifier": "com.siamprimetech.mdreader",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Simple MD Reader",
+        "width": 1180,
+        "height": 820,
+        "minWidth": 480,
+        "minHeight": 480,
+        "resizable": true,
+        "fullscreen": false,
+        "dragDropEnabled": true,
+        "backgroundColor": "#f4efe6"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: https: http:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost https://api.github.com",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Opens and reads .md, .markdown and .mdx files",
+    "longDescription": "Simple MD Reader opens markdown files and reads them. Adjustable typography, light and dark themes, an outline, in-document search, and a history of recently opened files.",
+    "createUpdaterArtifacts": false,
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown",
+          "mdown",
+          "mkd",
+          "mdx"
+        ],
+        "name": "Markdown Document",
+        "description": "Markdown Document",
+        "role": "Viewer",
+        "mimeType": "text/markdown",
+        "contentTypes": [
+          "net.daringfireball.markdown"
+        ]
+      }
+    ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "linux/md-reader.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "linux/md-reader.desktop"
+      }
+    },
+    "resources": {
+      "../LICENSE.md": "licenses/LICENSE.md",
+      "../THIRD_PARTY_LICENSES.md": "licenses/THIRD_PARTY_LICENSES.md",
+      "../SECURITY.md": "licenses/SECURITY.md"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY2RkQ0M0MxQUE5QUE5MzAKUldRd3FacXF3VVA5OW5wc0xwTTR6Y0dFcTkvQkQ4aWNiUHB1dkV5aXQ3SHh4aFVnNEl4TXl0YUoK",
+      "endpoints": [
+        "https://github.com/siamprimetech/mdreader/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
+  }
+}

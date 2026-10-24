@@ -1,0 +1,534 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      store:
+        description: 'Which store to publish to'
+        type: choice
+        options:
+          - play
+          - appstore
+          - both
+        default: play
+      track:
+        description: 'The Google Play track'
+        type: choice
+        options:
+          - internal
+          - beta
+          - alpha
+          - production
+        default: internal
+      dry_run:
+        description: 'Check the upload without publishing it'
+        type: boolean
+        default: true
+      submit_for_review:
+        description: 'Send the iOS build on for review'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '22'
+  PLAY_PACKAGE_NAME: com.siamprimetech.mdreader
+
+jobs:
+  checks:
+    # The checks live in their own workflow, so that the continuous
+    # integration and the release run the same ones. Nothing goes to a store
+    # before they have gone well: the checks are quick, and a store build
+    # that fails after a quarter of an hour is a waste of that time.
+    name: Checks
+    uses: ./.github/workflows/checks.yml
+
+  play:
+    name: Google Play
+    if: inputs.store == 'play' || inputs.store == 'both'
+    needs: checks
+    runs-on: ubuntu-latest
+    env:
+      # A copy that came from a store is updated by that store, so the reader
+      # must not offer to update itself.
+      VITE_STORE_BUILD: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v4
+        with:
+          # The action's default list starts with "tools", which is not a
+          # package the repository knows about, and the action fails on it.
+          packages: 'platform-tools'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: publish-Android
+
+      - name: Install the Android toolchain
+        # The platform of the API 37 comes in the versions 37.0, 37.1 and
+        # 37.2, and there is no plain "platforms;android-37": asking for it
+        # fails, and the build never starts. The NDKs are named as well,
+        # because the build takes the one that is named and not the newest
+        # that is on the machine.
+        run: |
+          sdkmanager "platform-tools" "platforms;android-37.0" \
+            "build-tools;37.0.0" "ndk;27.0.12077973" "ndk;27.1.12297006"
+
+      - run: npm ci
+
+      - name: Prepare the Android project
+        run: npx tauri android init --ci
+
+      - uses: gradle/actions/setup-gradle@v6
+        # The Android build is a Gradle build. This caches the Gradle
+        # distribution, the libraries Gradle downloads and the build cache,
+        # which is where most of the six minutes went.
+        with:
+          cache-read-only: false
+
+      - name: Set up the upload key
+        # Google Play takes no bundle that is not signed. The Android
+        # project holds no signing configuration of its own, so the release
+        # build would come out unsigned and Play would refuse it.
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$PASSWORD" ] || [ -z "$ALIAS" ]; then
+            echo "The upload key is missing." >&2
+            echo "Set ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and" >&2
+            echo "ANDROID_KEY_ALIAS in the repository settings." >&2
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE" | tr -d ' \t\r\n' | base64 -d > "$RUNNER_TEMP/upload-keystore.jks" || {
+            echo "ANDROID_KEYSTORE_BASE64 is not valid base64." >&2
+            exit 1
+          }
+          echo "The secret holds $(printf '%s' "$KEYSTORE" | tr -d ' \t\r\n' | wc -c) characters."
+          echo "The secret starts with: $(printf '%s' "$KEYSTORE" | tr -d ' \t\r\n' | head -c 12)"
+          echo "The decoded file is $(wc -c < "$RUNNER_TEMP/upload-keystore.jks") bytes."
+          echo "Its sha256 is $(sha256sum "$RUNNER_TEMP/upload-keystore.jks" | cut -d' ' -f1)."
+          echo "Its first bytes are: $(head -c 16 "$RUNNER_TEMP/upload-keystore.jks" | xxd -p)"
+          python3 tools/android-signing.py \
+            --keystore "$RUNNER_TEMP/upload-keystore.jks" \
+            --password "$PASSWORD" \
+            --alias "$ALIAS" \
+            --key-password "${KEY_PASSWORD:-$PASSWORD}"
+
+      - name: Build the bundle
+        run: npx tauri android build --aab
+
+      - name: Find the bundle
+        id: bundle
+        run: |
+          BUNDLE="$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)"
+          if [ -z "$BUNDLE" ]; then
+            echo "no bundle was produced" >&2
+            exit 1
+          fi
+          echo "path=$BUNDLE" >> "$GITHUB_OUTPUT"
+          ls -lh "$BUNDLE"
+
+      - name: Check the signature
+        # A bundle that is not signed is refused by Play with a message
+        # that does not say which file was at fault.
+        env:
+          BUNDLE_PATH: ${{ steps.bundle.outputs.path }}
+        run: jarsigner -verify "$BUNDLE_PATH"
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          # The version is in .ruby-version as well. It is repeated here so
+          # the workflow says which Ruby it wants, and not only the file
+          # does.
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Upload to Google Play
+        env:
+          AAB_PATH: ${{ steps.bundle.outputs.path }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_TRACK: ${{ inputs.track }}
+          PLAY_RELEASE_STATUS: ${{ inputs.dry_run && 'draft' || 'completed' }}
+          PLAY_VALIDATE_ONLY: ${{ inputs.dry_run }}
+        run: bundle exec fastlane play
+
+  appstore:
+    name: App Store
+    if: inputs.store == 'appstore' || inputs.store == 'both'
+    needs: checks
+    runs-on: macos-latest
+    # A run takes about half an hour. A step that waits for an answer nobody
+    # can give waits for six hours by default, so the job is given a limit.
+    timeout-minutes: 60
+    env:
+      # A copy that came from a store is updated by that store, so the reader
+      # must not offer to update itself.
+      VITE_STORE_BUILD: '1'
+      APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios, aarch64-apple-darwin, x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: publish-iOS
+
+      - run: npm ci
+
+      - name: Check the credentials
+        env:
+          KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -z "$KEY_ID" ] || [ -z "$ISSUER" ] || [ -z "$KEY" ]; then
+            echo "The App Store Connect credentials are missing." >&2
+            echo "Set APPLE_API_KEY, APPLE_API_ISSUER and APPLE_API_KEY_P8" >&2
+            echo "in the repository settings before sending anything to the store." >&2
+            exit 1
+          fi
+
+      - name: Write the App Store Connect key
+        env:
+          KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+          KEY_ID: ${{ secrets.APPLE_API_KEY }}
+          ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/apple"
+          printf '%s' "$KEY" > "$RUNNER_TEMP/apple/AuthKey.p8"
+          # fastlane wants the key, its id and the issuer in one file. The key
+          # is a block of text with newlines in it, so it is written as JSON
+          # rather than pasted into it.
+          python3 - "$RUNNER_TEMP/apple/api-key.json" "$KEY_ID" "$ISSUER" \
+            "$RUNNER_TEMP/apple/AuthKey.p8" <<'PYTHON'
+          import json
+          import sys
+
+          path, key_id, issuer_id, key_path = sys.argv[1:5]
+          with open(key_path, encoding="utf-8") as handle:
+              key = handle.read()
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump({"key_id": key_id, "issuer_id": issuer_id, "key": key}, handle)
+          PYTHON
+
+      - name: Prepare the Xcode project
+        run: |
+          export APPLE_DEVELOPMENT_TEAM="$(bash tools/apple-team.sh)"
+          npx tauri ios init --ci
+
+      - name: Set the app icon
+        run: |
+          set -euo pipefail
+          icons="src-tauri/icons/ios"
+          count=0
+          for dir in $(find src-tauri/gen/apple -type d -name '*.appiconset'); do
+            cp "$icons"/*.png "$dir"/
+            if [ -f "$icons/Contents.json" ]; then
+              cp "$icons/Contents.json" "$dir"/
+            fi
+            count=$((count + 1))
+          done
+          if [ "$count" -eq 0 ]; then
+            echo "No icon set was found in the generated project." >&2
+            exit 1
+          fi
+          echo "Wrote the reader's icon into $count icon sets."
+
+      - name: Put the icons in the bundle
+        run: python3 tools/ios-icon-build-settings.py
+
+      - name: Declare the document types
+        run: python3 tools/ios-info-plist.py
+
+      - name: Build the signed app
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/apple/AuthKey.p8
+        run: |
+          # The export needs to know the team. Without it the tool signs
+          # with a certificate it makes for itself and Apple refuses the
+          # package with "No Account for Team".
+          export APPLE_DEVELOPMENT_TEAM="$(bash tools/apple-team.sh)"
+          npx tauri ios build --export-method app-store-connect --target aarch64 --ci
+
+      - name: Find the package
+        id: package
+        run: |
+          IPA="$(find src-tauri/gen/apple/build -name '*.ipa' | head -1)"
+          if [ -z "$IPA" ]; then
+            echo "no package was produced" >&2
+            exit 1
+          fi
+          echo "path=$IPA" >> "$GITHUB_OUTPUT"
+          ls -lh "$IPA"
+
+      - name: Import the macOS certificates
+        # A macOS build that goes to the store is signed twice: the
+        # application with an "Apple Distribution" certificate (the Mac App
+        # Store also calls it "Mac App Distribution"), and the package with a
+        # "Mac Installer Distribution" one. The profile that belongs to the
+        # application has to be put in the bundle as well.
+        #
+        # The script imports the certificates into a keychain of their own,
+        # so the keychain of the runner is left alone, and it says what is
+        # missing when a secret is not set. Nothing here stops the build: the
+        # iOS build does not need any of it.
+        id: macosign
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_INSTALLER_CERTIFICATE: ${{ secrets.APPLE_INSTALLER_CERTIFICATE }}
+          APPLE_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: bash tools/apple-certificates.sh
+
+      - name: Say what can go to the store
+        # The macOS upload is skipped when the certificates are not the ones
+        # the store takes. A run that skips it quietly looks like a run that
+        # uploaded the macOS build and did not, so the run says it out loud
+        # here, in the summary of the run as well as in the log.
+        env:
+          SIGNED: ${{ steps.macosign.outputs.signed }}
+          INSTALLER: ${{ steps.macosign.outputs.installer }}
+          PROFILE: ${{ steps.macosign.outputs.profile }}
+          DISTRIBUTION: ${{ steps.macosign.outputs.distribution }}
+          STORE_READY: ${{ steps.macosign.outputs.store_ready }}
+          PROFILE_DETAILS: ${{ steps.macosign.outputs.profile_details }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## What goes to the store"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| iOS (the .ipa) | uploaded to TestFlight |"
+            if [ "$STORE_READY" = "true" ]; then
+              echo "| macOS (the .pkg) | sent to the store; the outcome is written below |"
+            else
+              echo "| macOS (the .pkg) | **not uploaded** |"
+            fi
+            echo ""
+            echo "- signed: $SIGNED"
+            echo "- installer: $INSTALLER"
+            echo "- profile: $PROFILE"
+            echo "- distribution: $DISTRIBUTION"
+            echo "- store ready: $STORE_READY"
+            if [ -n "$PROFILE_DETAILS" ]; then
+              echo "- the profile: $PROFILE_DETAILS"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$STORE_READY" != "true" ]; then
+            echo "::warning title=The macOS build is not sent to the App Store::The macOS build needs an 'Apple Distribution' certificate, a 'Mac Installer Distribution' certificate and a Mac App Store profile. The log of this run says which one is missing."
+            echo "The macOS build is not sent to the App Store." >&2
+            echo "See the summary of this run and the log above for what is missing." >&2
+          fi
+
+      - name: Write the entitlements
+        # The store only takes an app that runs inside the sandbox, and the
+        # sandbox needs the team id, which is not in the repository.
+        if: steps.macosign.outputs.profile == 'true'
+        run: |
+          export APPLE_DEVELOPMENT_TEAM="$(bash tools/apple-team.sh)"
+          python3 tools/macos-entitlements.py \
+            --team "$APPLE_DEVELOPMENT_TEAM" \
+            --identifier com.siamprimetech.mdreader \
+            --output src-tauri/Entitlements.plist
+
+      - name: Build the macOS application
+        # The entitlements and the profile belong in the bundle only when the
+        # store is the destination. Without them the build is a plain one,
+        # which can be installed and tested but not uploaded.
+        run: |
+          set -euo pipefail
+          CONFIG='{"bundle":{"macOS":{}}}'
+          if [ -f src-tauri/Entitlements.plist ] && [ -f src-tauri/embedded.provisionprofile ]; then
+            CONFIG='{"bundle":{"macOS":{"entitlements":"./Entitlements.plist","files":{"embedded.provisionprofile":"./embedded.provisionprofile"}}}}'
+          fi
+          npx tauri build --bundles app,dmg --target universal-apple-darwin --config "$CONFIG"
+
+      - name: Find the macOS application
+        id: macpackage
+        run: |
+          APP="$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)"
+          DMG="$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name '*.dmg' | head -1)"
+          if [ -z "$APP" ]; then
+            echo "The macOS application was not built." >&2
+            exit 1
+          fi
+          echo "app=$APP" >> "$GITHUB_OUTPUT"
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          ls -lh "$APP"
+
+      - name: Check the signature
+        if: steps.macosign.outputs.signed == 'true'
+        env:
+          APP_PATH: ${{ steps.macpackage.outputs.app }}
+        run: |
+          set -euo pipefail
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+      - name: Show the entitlements
+        # What is written into the signature is only shown, it is not checked:
+        # codesign puts the entitlements in the signature in a form of its own
+        # and prints them back in another, and on some versions of macOS that
+        # printing ends in an error of Apple's own tool. It says nothing about
+        # the signature, so it must not stop the build.
+        if: steps.macosign.outputs.signed == 'true'
+        continue-on-error: true
+        env:
+          APP_PATH: ${{ steps.macpackage.outputs.app }}
+        run: |
+          codesign -d --entitlements :- "$APP_PATH" 2>&1 || true
+
+      - name: Check that a package can be signed
+        # A key that the tool may not use without asking makes it wait for
+        # an answer that nobody can give, and the step waits for the hours
+        # the job has left. The check signs a package that holds nothing,
+        # and it is given two minutes: a hang shows up in two minutes
+        # instead of at the end of the job.
+        #
+        # The check does not stop the run when it fails: the packages of the
+        # run are worth keeping, and the step that makes the real package
+        # is given a time of its own as well.
+        if: steps.macosign.outputs.store_ready == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          INSTALLER_IDENTITY: ${{ env.APPLE_INSTALLER_IDENTITY }}
+        run: |
+          set -uo pipefail
+          echo "Checking that the package can be signed."
+
+          pkgbuild --nopayload \
+            --identifier com.siamprimetech.mdreader.check \
+            --version 1.0 "$RUNNER_TEMP/check.pkg" || exit 1
+
+          # The identity is the name of the certificate in the keychain of
+          # the run. It is written there by the step that imported it.
+          productsign --sign "$INSTALLER_IDENTITY" --timestamp=none \
+            "$RUNNER_TEMP/check.pkg" "$RUNNER_TEMP/check-signed.pkg" || exit 1
+
+          pkgutil --check-signature "$RUNNER_TEMP/check-signed.pkg" || exit 1
+
+          echo "A package can be signed."
+
+      - name: Make the package for the store
+        # The store takes a .pkg for a macOS app. The package is signed with
+        # an installer certificate: the one that signs the application cannot
+        # sign the package.
+        #
+        # The step is given a time of its own, because a key that the tool
+        # may not use without asking makes it wait for an answer that nobody
+        # can give. Ten minutes are enough to make a package; waiting longer
+        # means it will never be made.
+        id: macpkg
+        if: steps.macosign.outputs.store_ready == 'true'
+        timeout-minutes: 10
+        env:
+          APP_PATH: ${{ steps.macpackage.outputs.app }}
+          INSTALLER_IDENTITY: ${{ env.APPLE_INSTALLER_IDENTITY }}
+        run: |
+          set -euo pipefail
+          echo "Making the package."
+          xcrun productbuild --sign "$INSTALLER_IDENTITY" \
+            --component "$APP_PATH" /Applications "$RUNNER_TEMP/SimpleMDReader.pkg"
+          echo "The package is made. Checking its signature."
+          pkgutil --check-signature "$RUNNER_TEMP/SimpleMDReader.pkg"
+          echo "path=$RUNNER_TEMP/SimpleMDReader.pkg" >> "$GITHUB_OUTPUT"
+
+      - name: Keep the packages for testing
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: apple-packages
+          path: |
+            ${{ steps.package.outputs.path }}
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+      - name: Keep the package for the store
+        if: steps.macosign.outputs.store_ready == 'true'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: apple-macos-package
+          path: ${{ steps.macpkg.outputs.path }}
+          if-no-files-found: error
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          # The version is in .ruby-version as well. It is repeated here so
+          # the workflow says which Ruby it wants, and not only the file
+          # does.
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Upload to App Store Connect
+        id: upload
+        # Apple has no way to upload a build without sending it, so a dry run
+        # sends the build to TestFlight as well. What a dry run does not do is
+        # send the build on for review: that is a separate step.
+        env:
+          IPA_PATH: ${{ steps.package.outputs.path }}
+          MACOS_PACKAGE_PATH: ${{ steps.macpkg.outputs.path }}
+          MACOS_SIGNED: ${{ steps.macosign.outputs.store_ready }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/apple/api-key.json
+        run: bundle exec fastlane upload_app_store
+
+      - name: Send on for review
+        id: submit
+        if: inputs.submit_for_review
+        env:
+          MACOS_PACKAGE_PATH: ${{ steps.macpkg.outputs.path }}
+          MACOS_SIGNED: ${{ steps.macosign.outputs.store_ready }}
+          APP_STORE_CONNECT_API_KEY_PATH: ${{ runner.temp }}/apple/api-key.json
+        run: bundle exec fastlane submit
+
+      - name: Say what went to the store
+        # The lanes say what they did in the summary of the run; this step
+        # turns a macOS build that did not go to the store into a warning on
+        # the page of the run, so it cannot pass unnoticed.
+        if: always()
+        env:
+          UPLOADED: ${{ steps.upload.outputs.macos_uploaded }}
+          REVIEWED: ${{ steps.submit.outputs.macos_reviewed }}
+          STORE_READY: ${{ steps.macosign.outputs.store_ready }}
+          SUBMIT: ${{ inputs.submit_for_review }}
+        run: |
+          set -euo pipefail
+          if [ "$STORE_READY" = "true" ] && [ "$UPLOADED" != "true" ]; then
+            echo "::warning title=The macOS build was not uploaded::The macOS build was signed and packaged, but the store did not take it. The log of this run says why."
+            echo "The macOS build was not uploaded." >&2
+            echo "See the log above for what the store said." >&2
+          fi
+          if [ "$SUBMIT" = "true" ] && [ "$REVIEWED" != "true" ]; then
+            echo "::warning title=The macOS build was not sent on for review::The macOS build was not sent on for review. The log of this run says why."
+            echo "The macOS build was not sent on for review." >&2
+          fi

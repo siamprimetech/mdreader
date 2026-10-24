@@ -1,0 +1,246 @@
+# The store uploads.
+#
+# Nothing is sent to fastlane's own analytics.
+opt_out_usage
+
+# Everything secret comes from the environment, so nothing sensitive is ever
+# written to the repository. Each lane is called from the publishing workflow
+# with the paths and identifiers it needs.
+#
+#   bundle exec fastlane play             # upload the Android bundle to Google Play
+#   bundle exec fastlane upload_app_store # upload the iOS and macOS builds to App Store Connect
+#   bundle exec fastlane submit           # send the iOS and macOS builds on for review
+
+# Reads a value from the environment, and says which one is missing.
+def required(name)
+  value = ENV[name]
+  UI.user_error!("#{name} is not set") if value.nil? || value.empty?
+  value
+end
+
+# Writes what happened with the macOS build to the summary of the run on
+# GitHub and to the output of the step, so the run says the truth about it
+# without anybody having to read the log.
+def report(key, heading, text, ok)
+  summary = ENV["GITHUB_STEP_SUMMARY"].to_s
+  unless summary.empty?
+    File.open(summary, "a") do |file|
+      file.puts("## #{heading}")
+      file.puts("")
+      file.puts("- #{text}")
+      file.puts("")
+    end
+  end
+
+  output = ENV["GITHUB_OUTPUT"].to_s
+  File.open(output, "a") { |file| file.puts("#{key}=#{ok}") } unless output.empty?
+
+  # A failure is shown on the page of the run itself, not only in the log.
+  unless ok
+    puts "::error title=The macOS build did not go to the store::#{text}"
+  end
+end
+
+lane :play do
+  aab = required("AAB_PATH")
+  package_name = required("PLAY_PACKAGE_NAME")
+  track = ENV.fetch("PLAY_TRACK", "internal")
+  release_status = ENV.fetch("PLAY_RELEASE_STATUS", "completed")
+  validate_only = ENV.fetch("PLAY_VALIDATE_ONLY", "true") == "true"
+
+  UI.message("Uploading #{aab} to the #{track} track of #{package_name}")
+
+  upload_to_play_store(
+    aab: aab,
+    json_key_data: required("PLAY_SERVICE_ACCOUNT_JSON"),
+    package_name: package_name,
+    track: track,
+    release_status: release_status,
+    # The store listing is written by hand; the workflow only sends the build.
+    skip_upload_metadata: true,
+    skip_upload_images: true,
+    skip_upload_screenshots: true,
+    skip_upload_changelogs: true,
+    validate_only: validate_only
+  )
+end
+
+# The lane is not called "appstore": that is the name of a fastlane action,
+# and fastlane refuses a lane with the same name.
+#
+# It uploads the iOS build and the macOS build in one run. The macOS one is
+# only sent when it is signed and packaged, because the store refuses
+# anything else; the disk image is still kept as an artifact, so it can be
+# installed and tested.
+lane :upload_app_store do
+  ipa = required("IPA_PATH")
+  api_key = required("APP_STORE_CONNECT_API_KEY_PATH")
+  macos_package = ENV.fetch("MACOS_PACKAGE_PATH", "")
+  macos_signed = ENV.fetch("MACOS_SIGNED", "false") == "true"
+
+  UI.message("Uploading #{ipa} to App Store Connect")
+
+  upload_to_testflight(
+    ipa: ipa,
+    api_key_path: api_key,
+    # The build is signed before it gets here, so there is nothing to wait for.
+    skip_waiting_for_build_processing: true,
+    # The listing is written by hand; the workflow only sends the build.
+    skip_submission: true
+  )
+
+  if macos_package.empty?
+    UI.message("There is no macOS package to upload.")
+    report("macos_uploaded", "The upload", "macOS (the .pkg): not built", false)
+  elsif !macos_signed
+    UI.message("The macOS build is not signed with a distribution certificate,")
+    UI.message("so it is not sent to the store. It is in the artifacts of the run,")
+    UI.message("where it can be installed and tested.")
+    report("macos_uploaded", "The upload", "macOS (the .pkg): not uploaded (not signed)", false)
+  else
+    UI.message("Uploading #{macos_package} to App Store Connect")
+
+    uploaded = true
+
+    begin
+      # The action is called through its other name: this lane has the name
+      # "upload_app_store", and a lane of that name stands in the way of the
+      # action of the same name.
+      deliver(
+        pkg: macos_package,
+        platform: "osx",
+        api_key_path: api_key,
+        force: true,
+        submit_for_review: false,
+        # The listing is written by hand; the workflow only sends the build.
+        skip_metadata: true,
+        skip_screenshots: true
+      )
+    rescue StandardError => error
+      uploaded = false
+
+      UI.error("The macOS build was not uploaded: #{error.message}")
+      UI.message("The common reason is that the app has no macOS platform yet:")
+      UI.message("in App Store Connect, the app is opened, and in the sidebar")
+      UI.message("under the version the platform macOS is added. The macOS")
+      UI.message("version needs a description and screenshots of its own, and")
+      UI.message("they are in store/apple/macos-*. The package is in the")
+      UI.message("artifacts of the run.")
+    end
+
+    report(
+      "macos_uploaded",
+      "The upload",
+      "macOS (the .pkg): #{uploaded ? "uploaded" : "not uploaded"}",
+      uploaded
+    )
+  end
+end
+
+lane :submit do
+  api_key = required("APP_STORE_CONNECT_API_KEY_PATH")
+
+  UI.message("Sending the iOS build on for review")
+
+  ios_sent = true
+  ios_error = nil
+
+  begin
+    deliver(
+      # The package is only here so the app can be identified; it was uploaded
+      # by the lane before.
+      ipa: required("IPA_PATH"),
+      api_key_path: api_key,
+      submit_for_review: true,
+      # The release is made by hand, so the build is not released automatically.
+      automatic_release: false,
+      force: true,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      # The reader shows the files of the person who opened it and talks to
+      # no one else, so it uses no encryption of its own and it carries no
+      # content of a third party. The store asks both questions before it
+      # takes a build, and the answers are these.
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        content_rights_contains_third_party_content: false
+      },
+      # The check of the metadata before the submission would stop the
+      # submission without an error of its own when the listing of the store
+      # is not filled in yet, and the build would silently not go on for
+      # review. The store itself says what is missing.
+      run_precheck_before_submit: false
+    )
+  rescue StandardError => error
+    ios_sent = false
+    ios_error = error
+
+    UI.error("The iOS build was not sent on for review: #{error.message}")
+  end
+
+  # The macOS build is a build of its own, and Apple looks at it apart from
+  # the iOS one, so it is sent on its own way. It is sent even when the iOS
+  # build could not be sent: the two are apart in the store as well.
+  macos_package = ENV.fetch("MACOS_PACKAGE_PATH", "")
+  macos_signed = ENV.fetch("MACOS_SIGNED", "false") == "true"
+  macos_sent = false
+
+  if macos_package.empty?
+    UI.message("There is no macOS package to send on for review.")
+    report("macos_reviewed", "The review", "macOS (the .pkg): not built", false)
+  elsif !macos_signed
+    UI.message("The macOS build is not signed with a distribution certificate,")
+    UI.message("so it cannot be sent on for review.")
+    report("macos_reviewed", "The review", "macOS (the .pkg): not sent on for review (not signed)", false)
+  else
+    UI.message("Sending the macOS build on for review")
+
+    begin
+      deliver(
+        pkg: macos_package,
+        platform: "osx",
+        api_key_path: api_key,
+        submit_for_review: true,
+        # The release is made by hand, so the build is not released automatically.
+        automatic_release: false,
+        force: true,
+        skip_binary_upload: true,
+        skip_metadata: true,
+        skip_screenshots: true,
+        # The same answers as for the phone: no encryption of its own and no
+        # content of a third party.
+        submission_information: {
+          export_compliance_uses_encryption: false,
+          content_rights_contains_third_party_content: false
+        },
+        # The check of the metadata before the submission would stop the
+        # submission without an error of its own when the listing of the
+        # store is not filled in yet, and the build would silently not go on
+        # for review.
+        run_precheck_before_submit: false
+      )
+
+      macos_sent = true
+    rescue StandardError => error
+      UI.error("The macOS build was not sent on for review: #{error.message}")
+      UI.message("The common reason is that the app has no macOS platform yet:")
+      UI.message("in App Store Connect, the app is opened, and in the sidebar")
+      UI.message("under the version the platform macOS is added. The macOS")
+      UI.message("version needs a description and screenshots of its own, and")
+      UI.message("they are in store/apple/macos-*. The package is in the")
+      UI.message("artifacts of the run.")
+    end
+
+    report(
+      "macos_reviewed",
+      "The review",
+      "macOS (the .pkg): #{macos_sent ? "sent on for review" : "not sent on for review"}",
+      macos_sent
+    )
+  end
+
+  # A build that could not be sent on for review is a failure of the run, and
+  # it is raised after both builds had their chance.
+  raise ios_error unless ios_error.nil?
+end
