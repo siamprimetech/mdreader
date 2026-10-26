@@ -29,6 +29,7 @@ export interface SettingsPanel {
 interface PanelOptions {
   onChange: (change: Partial<ReaderSettings>) => void;
   onReset: () => void;
+  onClearRecents: () => void;
 }
 
 interface ControlBinding {
@@ -303,6 +304,12 @@ export function createSettingsPanel(options: PanelOptions): SettingsPanel {
     ]),
     body,
     h('footer', { class: 'settings__footer' }, [
+      h('button', {
+        type: 'button',
+        class: 'text-button',
+        text: 'Clear recent files',
+        onclick: options.onClearRecents,
+      }),
       h('button', {
         type: 'button',
         class: 'text-button',

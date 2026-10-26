@@ -8,7 +8,6 @@
 
 import { h } from './dom.ts';
 import { icon } from './icons.ts';
-import { logo } from './logo.ts';
 
 export interface Shell {
   root: HTMLElement;
@@ -33,7 +32,7 @@ export interface Shell {
 }
 
 export function createShell(): Shell {
-  const title = h('span', { class: 'toolbar__title', text: 'Simple MD Reader' });
+  const title = h('span', { class: 'toolbar__title' });
 
   const progressBar = h('span', { class: 'progress__bar' });
   const progress = h('div', { class: 'progress' }, [progressBar]);
@@ -90,9 +89,9 @@ export function createShell(): Shell {
   }, [icon('sliders')]);
 
   const toolbar = h('header', { class: 'toolbar' }, [
-    h('div', { class: 'toolbar__group' }, [outlineToggle, openButton, historyToggle]),
-    h('div', { class: 'toolbar__brand' }, [logo(17), title]),
-    h('div', { class: 'toolbar__group' }, [searchToggle, themeToggle, settingsToggle, aboutToggle]),
+    h('div', { class: 'toolbar__group toolbar__group--start' }, [outlineToggle, openButton, historyToggle]),
+    title,
+    h('div', { class: 'toolbar__group toolbar__group--end' }, [searchToggle, themeToggle, settingsToggle, aboutToggle]),
   ]);
 
   const content = h('article', { class: 'prose', id: 'content' });
@@ -116,12 +115,17 @@ export function createShell(): Shell {
   const scrim = h('div', { class: 'scrim', hidden: true });
   const toastHost = h('div', { class: 'toast-host' });
 
+  /* The drawer gets a layer of its own. The layer is a backdrop root, so the
+     drawer sliding across the page does not make the glass panels behind it
+     blur themselves all over again. */
+  const settingsLayer = h('div', { class: 'workspace__settings-layer' }, [settingsHost]);
+
   const root = h('div', { class: 'app' }, [
     progress,
     toolbar,
     workspace,
     searchHost,
-    settingsHost,
+    settingsLayer,
     statusHost,
     menuHost,
     scrim,

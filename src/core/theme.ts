@@ -79,17 +79,25 @@ export function applyTheme(mode: ThemeMode, origin?: { x: number; y: number }): 
     return;
   }
 
-  const radius = Math.hypot(
-    Math.max(origin.x, window.innerWidth - origin.x),
-    Math.max(origin.y, window.innerHeight - origin.y),
-  );
+  // The circle has to reach the farthest corner of the window, so it covers
+  // the whole page when it is fully grown. The extra pixel keeps a hairline
+  // of the old theme from surviving at the corners.
+  const radius =
+    Math.hypot(
+      Math.max(origin.x, window.innerWidth - origin.x),
+      Math.max(origin.y, window.innerHeight - origin.y),
+    ) + 1;
 
+  // The wipe is a circle that is scaled up rather than one that is clipped
+  // open: a transform is composited, while a clip-path has to be drawn again
+  // on every frame of the animation, which is what made the change stutter.
   const overlay = document.createElement('div');
   overlay.className = 'theme-wipe';
   overlay.dataset.theme = next;
-  overlay.style.setProperty('--wipe-origin-x', `${origin.x}px`);
-  overlay.style.setProperty('--wipe-origin-y', `${origin.y}px`);
-  overlay.style.setProperty('--wipe-radius', `${radius}px`);
+  overlay.style.width = `${radius * 2}px`;
+  overlay.style.height = `${radius * 2}px`;
+  overlay.style.left = `${origin.x - radius}px`;
+  overlay.style.top = `${origin.y - radius}px`;
   document.body.append(overlay);
 
   let settled = false;
@@ -100,7 +108,13 @@ export function applyTheme(mode: ThemeMode, origin?: { x: number; y: number }): 
 
     document.documentElement.dataset.theme = next;
     syncThemeColor(next);
-    overlay.remove();
+
+    // The page repaints in the new colours underneath the wipe. Waiting a
+    // frame before taking the wipe away keeps that repaint from showing up
+    // as a stall.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => overlay.remove());
+    });
   };
 
   // The animation is the usual ending; the timer is the guarantee that the

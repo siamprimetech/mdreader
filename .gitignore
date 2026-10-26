@@ -8,6 +8,8 @@ dist-ssr/
 
 # Research scratch space, the notes and the drafts of the store research
 .research/
+.playwright-mcp/
+.openchamber/
 
 # Scratch space of the store asset tools, the frames of the preview films
 store/build/

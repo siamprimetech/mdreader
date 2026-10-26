@@ -26,7 +26,7 @@ import {
 } from './platform/documents.ts';
 import { watchForDroppedFiles } from './platform/drag-drop.ts';
 import { watchForPastedText } from './platform/paste.ts';
-import { listRecents, rememberDocument, type RecentFile } from './platform/recents.ts';
+import { clearRecents, listRecents, rememberDocument, type RecentFile } from './platform/recents.ts';
 import {
   detectMobileHost,
   directoryOf,
@@ -93,6 +93,10 @@ const settingsPanel = createSettingsPanel({
     resetSettings();
     toast.show('Settings restored to their defaults.');
   },
+  onClearRecents: () => {
+    setState({ recents: clearRecents() }, 'recents');
+    toast.show('Recent files cleared.');
+  },
 });
 
 const searchBar = createSearchBar({
@@ -146,6 +150,27 @@ function setTheme(mode: 'light' | 'dark' | 'system'): void {
   // The settings subscriber applies the theme, so it is not applied here as
   // well: two wipes would cross the screen at once.
   updateSettings({ theme: mode });
+}
+
+/**
+ * Warms the fonts the reader draws with.
+ *
+ * The settings panel carries the only mono text in the app, so without this
+ * the first time the panel opens the browser fetches and swaps a webfont in
+ * under the reader's cursor, which reads as a flicker.
+ */
+function warmFonts(): void {
+  if (typeof document.fonts?.load !== 'function') return;
+
+  const families = [
+    'Public Sans Variable',
+    'Newsreader Variable',
+    'JetBrains Mono Variable',
+  ];
+
+  for (const family of families) {
+    void document.fonts.load(`1rem "${family}"`).catch(() => undefined);
+  }
 }
 
 // -------------------------------------------------------------- document ---
@@ -252,7 +277,7 @@ on('document', () => {
   if (!current || !rendered) {
     shell.content.replaceChildren();
     shell.welcomeHost.hidden = false;
-    shell.title.textContent = 'Simple MD Reader';
+    shell.title.textContent = '';
     document.title = 'Simple MD Reader';
     outlinePanel.render([]);
     statusBar.render(null, null);
@@ -352,6 +377,9 @@ on('panels', () => {
   shell.root.classList.toggle('is-search-open', panels.search);
 
   shell.settingsHost.setAttribute('aria-hidden', String(!panels.settings));
+  // The drawer stays in the page, faded out, so that it is ready to be drawn
+  // the moment it is asked for. It must not be reachable while it is closed.
+  shell.settingsHost.toggleAttribute('inert', !panels.settings);
   shell.outlineToggle.setAttribute('aria-pressed', String(panels.outline));
   shell.settingsToggle.setAttribute('aria-pressed', String(panels.settings));
   shell.searchToggle.setAttribute('aria-pressed', String(panels.search));
@@ -390,6 +418,35 @@ document.addEventListener('pointerdown', (event) => {
 shell.scrim.addEventListener('click', () => {
   toggleSettings(false);
   toggleOutline(false);
+});
+
+// A click that lands outside the drawer closes it. The drawer is gone by the
+// time the click arrives, so the click would fall through to whatever sits
+// behind it; the next click is swallowed instead.
+let swallowNextClick = false;
+
+document.addEventListener('click', (event) => {
+  if (!swallowNextClick) return;
+  swallowNextClick = false;
+  event.stopPropagation();
+  event.preventDefault();
+}, true);
+
+document.addEventListener('pointerdown', (event) => {
+  if (!state.panels.settings) return;
+
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (shell.settingsHost.contains(target)) return;
+  // The button that opens the settings is outside the drawer, so it is left
+  // to its own handler: it would close the settings twice.
+  if (shell.settingsToggle.contains(target)) return;
+
+  toggleSettings(false);
+  swallowNextClick = true;
+  window.setTimeout(() => {
+    swallowNextClick = false;
+  }, 250);
 });
 
 shell.settingsHost.addEventListener('click', (event) => {
@@ -542,3 +599,6 @@ emit('document');
 void watchForSystemDocuments();
 void openStartupDocument();
 
+// The fonts are warmed once the first frame is on screen, so the fetch never
+// holds up the window.
+window.setTimeout(warmFonts, 0);

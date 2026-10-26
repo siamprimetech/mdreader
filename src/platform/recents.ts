@@ -51,6 +51,12 @@ function persist(recents: RecentFile[]): void {
   writeJson(RECENTS_KEY, recents);
 }
 
+/** Removes the stored history without changing the document currently open. */
+export function clearRecents(): RecentFile[] {
+  persist([]);
+  return [];
+}
+
 /** Adds a document to the top of the history. */
 export function rememberDocument(document: ReaderDocument): RecentFile[] {
   const entry: RecentFile = {
@@ -68,5 +74,4 @@ export function rememberDocument(document: ReaderDocument): RecentFile[] {
   persist(recents);
   return recents;
 }
-
 

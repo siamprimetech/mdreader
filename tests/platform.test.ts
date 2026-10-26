@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { directoryOf, fileNameOf, isUri } from '../src/platform/runtime.ts';
-import { listRecents, rememberDocument } from '../src/platform/recents.ts';
+import { clearRecents, listRecents, rememberDocument } from '../src/platform/recents.ts';
 import { installDom } from './dom.ts';
 
 installDom();
@@ -70,6 +70,15 @@ test('different documents are all remembered, newest first', () => {
     recents.map((recent) => recent.name),
     ['two.md', 'one.md'],
   );
+});
+
+test('clearing recent files removes the persisted history', () => {
+  window.localStorage.clear();
+  rememberDocument({ name: 'sample.md', path: '/old/device/sample.md', directory: null, content: 'text' });
+
+  assert.deepEqual(clearRecents(), []);
+  assert.deepEqual(listRecents(), []);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem('md-reader.recents.v1') ?? 'null'), []);
 });
 
 test('text that was never a file is kept as it is', () => {

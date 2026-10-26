@@ -96,6 +96,18 @@ jobs:
       - name: Prepare the Android project
         run: npx tauri android init --ci
 
+      - name: Set the version code
+        # Google Play takes a build only when its version code is higher than
+        # the one of the build before it, and it says so in one line: "Version
+        # code 1000000 has already been used". The code that the Tauri build
+        # makes on its own comes from the version of the app, so it is the
+        # same on every run. The number of the run grows with every run, so
+        # it is what the code is made of.
+        run: |
+          python3 tools/android-version-code.py \
+            --run-number "${{ github.run_number }}" \
+            --output "$RUNNER_TEMP/android-version.json"
+
       - uses: gradle/actions/setup-gradle@v6
         # The Android build is a Gradle build. This caches the Gradle
         # distribution, the libraries Gradle downloads and the build cache,
@@ -135,7 +147,7 @@ jobs:
             --key-password "${KEY_PASSWORD:-$PASSWORD}"
 
       - name: Build the bundle
-        run: npx tauri android build --aab
+        run: npx tauri android build --aab --config "$RUNNER_TEMP/android-version.json"
 
       - name: Find the bundle
         id: bundle
