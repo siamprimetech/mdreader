@@ -12,6 +12,11 @@ if ! command -v inkscape >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v convert >/dev/null 2>&1; then
+  echo "ImageMagick is needed to take the transparency out of the iOS icons." >&2
+  exit 1
+fi
+
 inkscape "$SOURCE" \
   --export-type=png \
   --export-width=1024 \
@@ -19,6 +24,16 @@ inkscape "$SOURCE" \
   --export-filename="$ROOT/src-tauri/icons/source.png"
 
 cd "$ROOT"
-npx tauri icon src-tauri/icons/source.png
+
+# The manifest holds the artwork of the layers of the Android icon: the
+# background, the mark of the reader and the mark without a colour, for the
+# phones that draw their launcher icons in the colours of their wallpaper.
+npx tauri icon src-tauri/icons/app-icon.json
+
+# The App Store takes an icon only when it has no channel of transparency, so
+# the icons of the phone are laid on white and lose their alpha channel.
+for icon in src-tauri/icons/ios/*.png; do
+  convert "$icon" -background white -alpha remove -alpha off "$icon"
+done
 
 echo "icons regenerated"

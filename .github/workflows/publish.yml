@@ -96,6 +96,13 @@ jobs:
       - name: Prepare the Android project
         run: npx tauri android init --ci
 
+      - name: Set the app icon
+        # The project that `tauri android init` makes carries the icon of
+        # Tauri itself, and the launcher of a phone shows the icon of the
+        # project. The icon of the reader is put in its place, so that the
+        # phone shows the reader and not the tool that built it.
+        run: python3 tools/android-app-icon.py
+
       - name: Set the version code
         # Google Play takes a build only when its version code is higher than
         # the one of the build before it, and it says so in one line: "Version

@@ -220,12 +220,6 @@ body {
   height: 1.75rem;
 }
 
-/* A hidden icon button is still a grid box, so it has to be taken out of the
-   flow by hand. */
-.icon-button[hidden] {
-  display: none;
-}
-
 .text-button {
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--rule);
@@ -815,14 +809,22 @@ body {
 .workspace__welcome {
   inset: 0;
   display: grid;
+  /* The column is held to the width of the window. Left to itself the grid
+     would make it as wide as the card asks for, and the card would then
+     overflow the window sideways. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 5rem 1.5rem 4rem;
   overflow-y: auto;
+  /* The area scrolls down when the card is taller than the window, but it
+     never scrolls sideways: a phone has no room for that. */
+  overflow-x: hidden;
 }
 
 .welcome {
   width: 100%;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
 }
 
@@ -945,7 +947,10 @@ body {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
-  flex: none;
+  /* The folder gives way when the card is narrow, rather than pushing the row
+     past the edge of the screen. */
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: var(--font-size-small);
   color: var(--ink-faint);
 }
@@ -954,7 +959,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 12rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(12rem, 45%);
   direction: rtl;
   text-align: left;
 }
@@ -1153,6 +1160,8 @@ kbd {
   inset: 0;
   z-index: 80;
   display: grid;
+  /* As on the start screen, the column keeps to the width of the window. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: 1.5rem;
 }
@@ -1486,7 +1495,13 @@ kbd {
   /* A small phone gets a wider margin around the card, so that it reads as a
      card laid on the screen rather than as the screen itself. */
   .workspace__welcome {
-    padding: 4.5rem 2rem 3.5rem;
+    padding: 4.5rem 2.5rem 3.5rem;
+  }
+
+  /* The window above the reader is as narrow as the card on the start screen,
+     so the two are the same shape on a phone. */
+  .about {
+    padding: 1.5rem 2.5rem;
   }
 
   .welcome__title {

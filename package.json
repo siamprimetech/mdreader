@@ -11,6 +11,8 @@
     "icons": "bash tools/make-icons.sh",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:android:build": "python3 tools/android-app-icon.py && tauri android build",
+    "tauri:android:init": "tauri android init && python3 tools/android-app-icon.py",
     "tauri:build": "tauri build --no-sign",
     "tauri:dev": "tauri dev",
     "tauri:release": "tauri build",
