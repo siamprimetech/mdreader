@@ -220,6 +220,12 @@ body {
   height: 1.75rem;
 }
 
+/* A hidden icon button is still a grid box, so it has to be taken out of the
+   flow by hand. */
+.icon-button[hidden] {
+  display: none;
+}
+
 .text-button {
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--rule);
@@ -821,7 +827,9 @@ body {
 }
 
 .welcome__card {
-  width: min(30rem, 100%);
+  /* The card is as wide as the window above it, so the two read as the same
+     kind of thing. */
+  width: min(24rem, 100%);
   padding: 2.4rem 2rem 1.8rem;
   text-align: center;
   background: var(--paper-glass);
@@ -1473,6 +1481,12 @@ kbd {
 
   .welcome__card {
     padding: 1.8rem 1.25rem 1.4rem;
+  }
+
+  /* A small phone gets a wider margin around the card, so that it reads as a
+     card laid on the screen rather than as the screen itself. */
+  .workspace__welcome {
+    padding: 4.5rem 2rem 3.5rem;
   }
 
   .welcome__title {

@@ -29,6 +29,7 @@ export interface Shell {
   historyToggle: HTMLButtonElement;
   aboutToggle: HTMLButtonElement;
   openButton: HTMLButtonElement;
+  closeButton: HTMLButtonElement;
 }
 
 export function createShell(): Shell {
@@ -51,6 +52,16 @@ export function createShell(): Shell {
     title: 'Open a file (Ctrl+O)',
     'aria-label': 'Open a file',
   }, [icon('folder')]);
+
+  /* The close button only has a meaning while a document is open, so it
+     starts out of the way and is shown with the document. */
+  const closeButton = h('button', {
+    type: 'button',
+    class: 'icon-button',
+    title: 'Close document',
+    'aria-label': 'Close document',
+    hidden: true,
+  }, [icon('close')]);
 
   const historyToggle = h('button', {
     type: 'button',
@@ -89,7 +100,7 @@ export function createShell(): Shell {
   }, [icon('sliders')]);
 
   const toolbar = h('header', { class: 'toolbar' }, [
-    h('div', { class: 'toolbar__group toolbar__group--start' }, [outlineToggle, openButton, historyToggle]),
+    h('div', { class: 'toolbar__group toolbar__group--start' }, [outlineToggle, openButton, historyToggle, closeButton]),
     title,
     h('div', { class: 'toolbar__group toolbar__group--end' }, [searchToggle, themeToggle, settingsToggle, aboutToggle]),
   ]);
@@ -152,5 +163,6 @@ export function createShell(): Shell {
     historyToggle,
     aboutToggle,
     openButton,
+    closeButton,
   };
 }

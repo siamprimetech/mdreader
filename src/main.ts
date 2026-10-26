@@ -215,6 +215,22 @@ async function showDocument(document: ReaderDocument): Promise<void> {
   setState({ recents }, 'recents');
 }
 
+/**
+ * Closes the open document and puts the welcome screen back.
+ *
+ * The app carries on running: the document is only put away, and it stays in
+ * the list of recent files so that it can be opened again.
+ */
+function closeDocument(): void {
+  if (!state.document) return;
+
+  toggleSearch(false);
+  toggleOutline(false);
+  toggleSettings(false);
+
+  setState({ document: null, rendered: null }, 'document');
+}
+
 async function reopenRecent(recent: RecentFile): Promise<void> {
   try {
     if (recent.path) {
@@ -273,6 +289,9 @@ async function watchForSystemDocuments(): Promise<void> {
 
 on('document', () => {
   const { document: current, rendered } = state;
+
+  // The close button belongs to the document, so it only appears with one.
+  shell.closeButton.hidden = !current;
 
   if (!current || !rendered) {
     shell.content.replaceChildren();
@@ -404,6 +423,7 @@ shell.historyToggle.addEventListener('click', () => {
   recentMenu.open(shell.historyToggle);
 });
 shell.openButton.addEventListener('click', () => void openDocument());
+shell.closeButton.addEventListener('click', () => closeDocument());
 shell.searchToggle.addEventListener('click', () => toggleSearch(true));
 shell.settingsToggle.addEventListener('click', () => toggleSettings());
 shell.themeToggle.addEventListener('click', () => setTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
